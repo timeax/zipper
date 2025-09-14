@@ -14,7 +14,42 @@ import { saveUserPreset, removeUserPreset, loadUserPresets, getPresetDirs, ensur
 import YAML from "yaml";
 import { getGlobalStubDirs } from "./utils.js";
 /* ------------------------------- tiny helpers ------------------------------- */
+// 1) Extract the handler so both commands reuse it
+async function handlePack(args: any) {
+   const { cfg, filepath } = await loadConfig(args.config as string | undefined);
 
+   if (args.out) cfg.out = String(args.out);
+   if (args.root) cfg.root = String(args.root);
+   if (args.include?.length) cfg.include = [...(cfg.include ?? []), ...args.include.map(String)];
+   if (args.exclude?.length) cfg.exclude = [...(cfg.exclude ?? []), ...args.exclude.map(String)];
+   if (args.order) cfg.order = (String(args.order).split(",") as Order);
+   if (typeof args["respect-gitignore"] === "boolean") cfg.respectGitignore = args["respect-gitignore"];
+   if (args["ignore-file"]?.length) cfg.ignoreFiles = [...(cfg.ignoreFiles ?? []), ...args["ignore-file"].map(String)];
+   if (args["no-manifest"]) cfg.manifest = false;
+   if (args["manifest-path"]) cfg.manifestPath = String(args["manifest-path"]);
+
+   const root = path.resolve(process.cwd(), cfg.root ?? ".");
+   const listExtra = loadListFile(root, args.from as string | undefined);
+   const extraIgnore = readIgnoreFiles(root, cfg.ignoreFiles);
+
+   const files = await buildFileList(cfg, listExtra, extraIgnore);
+
+   if (args["dry-run"]) {
+      console.log(pc.dim(`# Config: ${filepath ?? "(defaults)"}  Root: ${cfg.root}`));
+      files.forEach(f => console.log(f));
+      console.log(pc.green(`\n${files.length} files selected.`));
+      return;
+   }
+
+   if (!files.length) {
+      console.error(pc.red("No files matched your rules. Nothing to zip."));
+      process.exit(2);
+   }
+
+   const out = await writeZip(cfg, files);
+   console.log(pc.green(`✔ wrote ${out} (${files.length} files)`));
+}
+///===
 async function fileExists(p: string) {
    try { await fs.access(p); return true; } catch { return false; }
 }
@@ -250,53 +285,44 @@ await yargs(hideBin(process.argv))
          }
       })
    /* -------------------------------- pack --------------------------------- */
-   .command("pack", "Create a zip using .zipconfig / zip.json", y => y
-      .option("config", { type: "string", desc: "Path to config file (no extension assumes .stub)" })
-      .option("out", { type: "string", desc: "Output zip path (overrides config)" })
-      .option("include", { type: "array", desc: "Additional include globs" })
-      .option("exclude", { type: "array", desc: "Additional exclude globs" })
-      .option("order", { type: "string", choices: ["include,exclude", "exclude,include"] as const, desc: "Rule order" })
-      .option("root", { type: "string", desc: "Project root for scanning" })
-      .option("dry-run", { type: "boolean", default: false, desc: "Print final file list and exit" })
-      .option("respect-gitignore", { type: "boolean", default: undefined, desc: "Also exclude files from .gitignore" })
-      .option("from", { type: "string", desc: "Read additional paths (one per line) from this file" })
-      .option("ignore-file", { type: "array", desc: "Additional ignore files (.zipignore by default)" })
-      .option("no-manifest", { type: "boolean", desc: "Disable manifest emission" })
-      .option("manifest-path", { type: "string", desc: "External manifest write path" })
-      , async (args) => {
-         const { cfg, filepath } = await loadConfig(args.config as string | undefined);
 
-         if (args.out) cfg.out = String(args.out);
-         if (args.root) cfg.root = String(args.root);
-         if (args.include?.length) cfg.include = [...(cfg.include ?? []), ...args.include.map(String)];
-         if (args.exclude?.length) cfg.exclude = [...(cfg.exclude ?? []), ...args.exclude.map(String)];
-         if (args.order) cfg.order = args.order.split(",") as Order;
-         if (typeof args["respect-gitignore"] === "boolean") cfg.respectGitignore = args["respect-gitignore"];
-         if (args["ignore-file"]?.length) cfg.ignoreFiles = [...(cfg.ignoreFiles ?? []), ...args["ignore-file"].map(String)];
-         if (args["no-manifest"]) cfg.manifest = false;
-         if (args["manifest-path"]) cfg.manifestPath = String(args["manifest-path"]);
-
-         const root = path.resolve(process.cwd(), cfg.root ?? ".");
-         const listExtra = loadListFile(root, args.from as string | undefined);
-         const extraIgnore = readIgnoreFiles(root, cfg.ignoreFiles);
-
-         const files = await buildFileList(cfg, listExtra, extraIgnore);
-
-         if (args["dry-run"]) {
-            console.log(pc.dim(`# Config: ${filepath ?? "(defaults)"}  Root: ${cfg.root}`));
-            files.forEach(f => console.log(f));
-            console.log(pc.green(`\n${files.length} files selected.`));
-            return;
-         }
-
-         if (!files.length) {
-            console.error(pc.red("No files matched your rules. Nothing to zip."));
-            process.exit(2);
-         }
-
-         const out = await writeZip(cfg, files);
-         console.log(pc.green(`✔ wrote ${out} (${files.length} files)`));
-      })
+   // 2) Register both commands (build is an alias/hidden)
+   .command(
+      "pack",
+      "Create a zip using .zipconfig / zip.json",
+      y => y
+         .option("config", { type: "string", desc: "Path to config file (no extension assumes .stub)" })
+         .option("out", { type: "string", desc: "Output zip path (overrides config)" })
+         .option("include", { type: "array", desc: "Additional include globs" })
+         .option("exclude", { type: "array", desc: "Additional exclude globs" })
+         .option("order", { type: "string", choices: ["include,exclude", "exclude,include"] as const, desc: "Rule order" })
+         .option("root", { type: "string", desc: "Project root for scanning" })
+         .option("dry-run", { type: "boolean", default: false, desc: "Print final file list and exit" })
+         .option("respect-gitignore", { type: "boolean", default: undefined, desc: "Also exclude files from .gitignore" })
+         .option("from", { type: "string", desc: "Read additional paths (one per line) from this file" })
+         .option("ignore-file", { type: "array", desc: "Additional ignore files (.zipignore by default)" })
+         .option("no-manifest", { type: "boolean", desc: "Disable manifest emission" })
+         .option("manifest-path", { type: "string", desc: "External manifest write path" }),
+      handlePack
+   )
+   .command(
+      "build",
+      false, // hidden alias
+      y => y
+         .option("config", { type: "string" })
+         .option("out", { type: "string" })
+         .option("include", { type: "array" })
+         .option("exclude", { type: "array" })
+         .option("order", { type: "string", choices: ["include,exclude", "exclude,include"] as const })
+         .option("root", { type: "string" })
+         .option("dry-run", { type: "boolean", default: false })
+         .option("respect-gitignore", { type: "boolean", default: undefined })
+         .option("from", { type: "string" })
+         .option("ignore-file", { type: "array" })
+         .option("no-manifest", { type: "boolean" })
+         .option("manifest-path", { type: "string" }),
+      handlePack
+   )
 
    /* -------------------------------- init --------------------------------- */
    .command("init [stub]", "Create .zipconfig from a stub", y => y

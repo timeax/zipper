@@ -20,7 +20,7 @@
   "scripts": {
     "build": "tsup src/cli.ts src/index.ts --format esm --sourcemap --dts --clean",
     "dev": "tsx src/cli.ts",
-    "test:dry": "node dist/cli.js pack --dry-run",
+    "test:dry": "node dist/cli.js pack --respect-gitignore --dry-run",
     "prepublishOnly": "npm run build"
   },
   "dependencies": {

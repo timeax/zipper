@@ -230,6 +230,86 @@ zipper build --out dist/site.zip
 
 ---
 
+## 🎮 Interactive Examples
+
+### Preset multi-select (migrate)
+
+```text
+$ zipper preset migrate --include-globals
+
+Select files to migrate into user presets
+Use ↑/↓, space to toggle, 'a' = toggle all, Enter to confirm
+
+> [x] laravel.stub        ./stubs
+  [ ] inertia.stub        ./stubs
+  [x] node.stub           ./stubs
+
+2/3 selected
+```
+
+When confirmed, the selected files are converted into user presets.
+
+### Dry-run preview
+
+```text
+$ zipper pack --dry-run
+
+# Config: .zipconfig  Root: ./
+app/Http/Controllers/UserController.php
+app/Models/User.php
+config/app.php
+...
+
+152 files selected.
+```
+
+---
+
+## 🧾 `pack` Command Options
+
+The `pack` command builds a zip archive from your project.
+
+```bash
+zipper pack [options]
+```
+
+Options:
+
+* `--config <path>`: Path to config file (if no extension, `.stub` is assumed).
+* `--out <path>`: Output zip path (overrides config).
+* `--include <globs...>`: Additional include glob patterns.
+* `--exclude <globs...>`: Additional exclude glob patterns.
+* `--order <string>`: Rule order; choices: `include,exclude` or `exclude,include`.
+* `--root <path>`: Project root for scanning.
+* `--dry-run`: Print final file list and exit.
+* `--respect-gitignore`: Exclude files matching `.gitignore`.
+* `--from <path>`: Read additional paths (one per line) from this file.
+* `--ignore-file <paths...>`: Additional ignore files (defaults to `.zipignore`).
+* `--no-manifest`: Disable manifest emission.
+* `--manifest-path <path>`: External manifest write path.
+
+Alias:
+
+```bash
+zipper build [options]
+```
+
+---
+
+## 📹 GIF Workflows
+
+> To be added: terminal GIF demos showing `init → pack → preset migrate` workflows.
+> Suggested tools: [asciinema](https://asciinema.org/) or [terminalizer](https://github.com/faressoft/terminalizer).
+
+Example workflow:
+
+1. `zipper init laravel`
+2. `zipper pack --dry-run`
+3. `zipper preset migrate --include-globals`
+
+---
+
+
 ## 🤝 Contributing
 
 1. Fork the repo
@@ -237,6 +317,19 @@ zipper build --out dist/site.zip
 3. Add/update stubs or presets
 4. Run tests (`npm test`)
 5. Submit a PR
+
+---
+
+## 📘 Notes
+
+* When `respectGitignore` is enabled, `.gitignore` rules are applied as **excludes**.
+* By default, the order is `[include, exclude]` → excludes win.
+* To allow includes to override `.gitignore`, set:
+
+  ```yaml
+  order: [exclude, include]
+  ```
+* This ensures you can re-include specific files or folders even if ignored by Git.
 
 ---
 
