@@ -12,8 +12,11 @@
       "types": "./dist/index.d.ts"
     }
   },
+  
   "files": [
     "dist",
+    "schema",
+    "stubs",            
     "README.md",
     "LICENSE"
   ],

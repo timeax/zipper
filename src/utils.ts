@@ -1,6 +1,7 @@
 import os from 'node:os';
 import path from "node:path";
 import fsSync from "node:fs";
+import { fileURLToPath } from "node:url";
 
 /** Get global stub dirs:
  * Priority: explicit --global-dir(s) > ZIPPER_STUBS env (split by path delimiter) > defaults (~/.config/zipper/stubs, ~/.zipper/stubs)
@@ -33,4 +34,12 @@ export function getGlobalStubDirs(extra: string[] = []): string[] {
 
 function isDirSync(p: string) {
    try { return fsSync.statSync(p).isDirectory(); } catch { return false; }
+}
+
+
+// Where the package’s own stubs live (bundled with the lib)
+export function getBuiltinStubDir(): string {
+  // ../stubs relative to this compiled file
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  return path.resolve(here, "../stubs");
 }
