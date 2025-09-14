@@ -1,0 +1,70 @@
+# Zipper config: Laravel + Inertia (ready-to-run bundle)
+# Includes vendor/** and compiled assets; excludes source dirs.
+
+$schema: node_modules/@timeax/zipper/schema/zipconfig.schema.json
+
+out: dist/site-inertia-prod.zip
+# out: dist/site-inertia-prod-${CI_COMMIT_SHA}.zip
+root: .
+
+# Start from Laravel base; we'll override includes/excludes below.
+presets: [laravel-basic]
+
+include:
+  # Core Laravel
+  - app/**
+  - bootstrap/**               # includes bootstrap/cache
+  - config/**
+  - database/**
+  - routes/**
+  - artisan
+  - composer.json
+  - composer.lock
+  - package.json
+
+  # Runtime dependencies (ship vendors)
+  - vendor/**
+
+  # Compiled front-end (already built by CI)
+  - public/build/**
+  - public/robots.txt
+  - public/favicon*.*
+  - public/.htaccess
+  - public/mix-manifest.json   # if you still use it
+
+  # Server-renderable views & i18n
+  - resources/views/**
+  - resources/lang/**
+
+exclude:
+  # Don’t ship source when bundling compiled assets
+  - resources/js/**
+  - resources/css/**
+  - resources/sass/**
+  - resources/ts/**
+
+  # Environment/VCS & dev configs
+  - .env*
+  - .git/**
+  - node_modules/**
+  - "**/*.map"
+  - .editorconfig
+  - vite.config.*
+  - postcss.config.*
+  - tailwind.config.*
+  - tsconfig*.json
+  - .eslintrc.*
+  - .prettier*
+
+  # Storage (recreated on server)
+  - storage/**
+  - public/storage/**
+
+respectGitignore: true
+ignoreFiles: [.zipignore]
+
+order: [include, exclude]
+deterministic: true
+manifest: true
+followSymlinks: false
+dot: true

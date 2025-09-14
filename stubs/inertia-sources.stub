@@ -1,0 +1,72 @@
+# Zipper config: Laravel + Inertia (build-on-server)
+# Ships sources; excludes compiled `public/build/**`. Composer/npm build runs on server.
+
+$schema: node_modules/@timeax/zipper/schema/zipconfig.schema.json
+
+out: dist/site-inertia-sources.zip
+# out: dist/site-inertia-sources-${CI_COMMIT_SHA}.zip
+root: .
+
+# Base Laravel preset; we’ll keep source directories.
+presets: [laravel-basic]
+
+include:
+  # Core Laravel
+  - app/**
+  - bootstrap/**
+  - config/**
+  - database/**
+  - routes/**
+  - artisan
+  - composer.json
+  - composer.lock
+  - package.json
+
+  # Source code for client (Inertia/Vite)
+  - resources/js/**
+  - resources/ts/**
+  - resources/css/**
+  - resources/sass/**
+  - resources/views/**
+  - resources/lang/**
+
+  # Public static files (not Vite build output)
+  - public/robots.txt
+  - public/favicon*.*
+  - public/.htaccess
+
+exclude:
+  # Exclude compiled assets — they’ll be generated on server
+  - public/build/**
+
+  # Server will run `composer install` — don’t ship vendor by default
+  - vendor/**
+
+  # Dev/node artefacts (server will `npm ci && npm run build`)
+  - node_modules/**
+  - "**/*.map"
+
+  # Environment/VCS & misc
+  - .env*
+  - .git/**
+  - .editorconfig
+  - .phpunit.result.cache
+  - .eslintrc.*
+  - .prettier*
+  - vite.config.*
+  - postcss.config.*
+  - tailwind.config.*
+  - tsconfig*.json
+
+  # Storage and symlinked public storage
+  - storage/**
+  - public/storage/**
+
+respectGitignore: true
+ignoreFiles: [.zipignore]
+
+order: [include, exclude]
+deterministic: true
+manifest: true
+followSymlinks: false
+dot: true

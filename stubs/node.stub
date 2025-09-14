@@ -1,0 +1,56 @@
+# Zipper config for a Node/TypeScript package
+# Save as .zipconfig (or keep as a stub for scaffolding)
+
+$schema: node_modules/@timeax/zipper/schema/zipconfig.schema.json
+
+# Where to write the zip (ENV vars are expanded if present)
+out: dist/package.zip
+# out: dist/package-${CI_COMMIT_SHA}.zip
+
+# Project root to scan
+root: .
+
+# Prefer shipping built output + essentials
+# (patterns that don't exist are simply ignored)
+include:
+  - dist/**          # built JS
+  - bin/**           # CLI shims
+  - package.json
+  - README*
+  - CHANGELOG*
+  - LICENSE*
+
+# Exclude dev-only or noisy stuff (preset adds more)
+exclude:
+  - coverage/**
+  - .vscode/**
+  - .idea/**
+  - .github/**
+  - examples/**
+  - demo/**
+  - test/**
+  - tests/**
+  - "**/*.log"
+
+# Git + custom ignore support
+respectGitignore: true
+ignoreFiles:
+  - .zipignore
+
+# Apply include first, then exclude (later wins)
+order: [include, exclude]
+
+# Deterministic archive order (stable sorting)
+deterministic: true
+
+# Embed MANIFEST.json + write external manifest and zip checksum
+manifest: true
+
+# Symlink & dotfile behaviour
+followSymlinks: false
+dot: true
+
+# Use the built-in preset as a sensible base:
+# - include: dist/**, package.json, README*, LICENSE*
+# - exclude: node_modules/**, .git/**, **/*.map
+presets: [node-module]

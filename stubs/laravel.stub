@@ -1,0 +1,69 @@
+# Zipper config for a Laravel app deployable bundle
+# Save as .zipconfig (or keep as a stub for scaffolding)
+
+$schema: node_modules/@timeax/zipper/schema/zipconfig.schema.json
+
+# Output archive
+out: dist/site.zip
+# out: dist/site-${CI_COMMIT_SHA}.zip
+
+# Root to scan
+root: .
+
+# Start from a Laravel-friendly preset
+# (includes app, bootstrap, config, database, public, resources, routes, artisan, composer.*, package.json)
+# and excludes node_modules, vendor, storage/**, .env*, .git/**, **/*.map
+presets: [laravel-basic]
+
+# Add/override rules for typical prod zips
+include:
+  - app/**
+  - bootstrap/**       # includes bootstrap/cache
+  - config/**
+  - database/**
+  - public/**          # your public assets (see excludes below)
+  - resources/**
+  - routes/**
+  - artisan
+  - composer.json
+  - composer.lock
+  - package.json
+
+exclude:
+  # storage: keep user data off the bundle (recreated on server)
+  - storage/**
+
+  # public: avoid bundling symlinked storage
+  - public/storage/**
+
+  # build artifacts / dev files
+  - node_modules/**
+  - "**/*.map"
+
+  # VCS & env
+  - .git/**
+  - .env*
+  - .editorconfig
+  - .phpunit.result.cache
+
+  # caches you usually regenerate on deploy
+  - bootstrap/cache/*.php~
+  - bootstrap/cache/*.bak
+
+# Respect .gitignore + optional .zipignore
+respectGitignore: true
+ignoreFiles:
+  - .zipignore
+
+# Rule precedence
+order: [include, exclude]
+
+# Reproducible builds
+deterministic: true
+
+# Embed MANIFEST.json and write external manifest + .sha256
+manifest: true
+
+# Symlink & dotfile behaviour
+followSymlinks: false
+dot: true

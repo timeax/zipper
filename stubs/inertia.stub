@@ -1,0 +1,89 @@
+# Zipper config for a Laravel + Inertia (React/TypeScript) app
+# Save as .zipconfig (or keep as a stub for scaffolding)
+
+$schema: node_modules/@timeax/zipper/schema/zipconfig.schema.json
+
+# Output archive
+out: dist/site-inertia.zip
+# out: dist/site-inertia-${CI_COMMIT_SHA}.zip
+
+# Root to scan
+root: .
+
+# Base Laravel rules, we’ll extend them
+# (includes core Laravel dirs; excludes node_modules, vendor, storage, .env*, .git/**, **/*.map)
+presets: [laravel-basic]
+
+# --- INERTIA / VITE NOTES ------------------------------------------------------
+# If you deploy compiled assets, make sure your CI runs:
+#   npm ci && npm run build
+# And your Vite output ends up in `public/build/**`.
+# For Blade layout, keep `resources/views/**` (e.g., app.blade.php).
+# -----------------------------------------------------------------------------
+
+include:
+  # Laravel app files
+  - app/**
+  - bootstrap/**
+  - config/**
+  - database/**
+  - routes/**
+  - artisan
+  - composer.json
+  - composer.lock
+  - package.json
+
+  # Public assets (compiled via Vite)
+  - public/build/**           # <-- compiled JS/CSS/assets
+  - public/mix-manifest.json  # (if you still have legacy)
+  - public/robots.txt
+  - public/favicon*.*
+  - public/.htaccess
+
+  # Blade views (Inertia root layout & any email/views you keep server-side)
+  - resources/views/**
+
+  # OPTIONAL: keep server-renderable emails, translations, etc.
+  - resources/lang/**
+
+exclude:
+  # Don’t ship sources when using compiled assets
+  - resources/js/**           # <-- comment out if you want to ship sources
+  - resources/css/**
+  - resources/sass/**
+  - resources/ts/**
+
+  # Build/dev stuff
+  - node_modules/**
+  - "**/*.map"
+
+  # Vendor often rebuilt on server/CI (toggle as needed)
+  - vendor/**
+
+  # Storage & environment/VCS
+  - storage/**
+  - .env*
+  - .git/**
+  - .editorconfig
+  - vite.config.*              # build config files not needed at runtime
+  - postcss.config.*           # same
+  - tailwind.config.*          # same
+  - tsconfig*.json             # same
+  - .eslintrc.*                # same
+  - .prettier*                 # same
+
+# Respect .gitignore + optional .zipignore
+respectGitignore: true
+ignoreFiles:
+  - .zipignore
+
+# Precedence & determinism
+order: [include, exclude]
+deterministic: true
+
+# Manifest & checksum
+manifest: true
+
+# Symlinks & dotfiles behaviour
+followSymlinks: false
+dot: true

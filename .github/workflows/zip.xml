@@ -1,0 +1,41 @@
+name: Build Zip Artifact
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch: {}
+
+jobs:
+  zip:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install zipper
+        run: |
+          npm ci
+          npm run build
+
+      - name: Dry-run (optional)
+        run: node dist/cli.js pack --dry-run
+
+      - name: Pack
+        env:
+          CI_COMMIT_SHA: ${{ github.sha }}
+        run: node dist/cli.js pack
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: site-zip
+          path: |
+            dist/*.zip
+            dist/*.manifest.json
+            dist/*.zip.sha256

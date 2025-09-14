@@ -1,0 +1,60 @@
+{
+  "name": "@timeax/zipper",
+  "version": "0.1.0",
+  "description": "Config-driven project zipper with .zipconfig / zip.json (include/exclude, presets, dry-run, gitignore support).",
+  "type": "module",
+  "bin": {
+    "zipper": "dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsup src/cli.ts src/index.ts --format esm --sourcemap --dts --clean",
+    "dev": "tsx src/cli.ts",
+    "test:dry": "node dist/cli.js pack --dry-run",
+    "prepublishOnly": "npm run build"
+  },
+  "dependencies": {
+    "ajv": "^8.17.1",
+    "archiver": "^7.0.1",
+    "cli-progress": "^3.12.0",
+    "cosmiconfig": "^9.0.0",
+    "globby": "^14.1.0",
+    "ignore": "^5.3.2",
+    "picocolors": "^1.1.1",
+    "yaml": "^2.8.1",
+    "yargs": "^17.7.2"
+  },
+  "devDependencies": {
+    "@types/archiver": "^6.0.3",
+    "@types/cli-progress": "^3.11.6",
+    "@types/node": "^24.4.0",
+    "@types/yargs": "^17.0.33",
+    "tsup": "^8.5.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/timeax/zipper.git"
+  },
+  "keywords": [
+    "zipper",
+    "project"
+  ],
+  "author": "Timothy Okpako David",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/timeax/zipper/issues"
+  },
+  "homepage": "https://github.com/timeax/zipper#readme"
+}

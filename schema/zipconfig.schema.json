@@ -1,0 +1,86 @@
+{
+   "$id": "https://example.com/zipconfig.schema.json",
+   "$schema": "https://json-schema.org/draft/2020-12/schema",
+   "title": "Zipper Config",
+   "type": "object",
+   "properties": {
+      "out": {
+         "type": "string",
+         "description": "Output zip path"
+      },
+      "root": {
+         "type": "string"
+      },
+      "include": {
+         "type": "array",
+         "items": {
+            "type": "string"
+         }
+      },
+      "exclude": {
+         "type": "array",
+         "items": {
+            "type": "string"
+         }
+      },
+      "dot": {
+         "type": "boolean"
+      },
+      "followSymlinks": {
+         "type": "boolean"
+      },
+      "order": {
+         "type": "array",
+         "prefixItems": [
+            {
+               "enum": [
+                  "include",
+                  "exclude"
+               ]
+            },
+            {
+               "enum": [
+                  "include",
+                  "exclude"
+               ]
+            }
+         ],
+         "items": false,
+         "minItems": 2,
+         "maxItems": 2
+      },
+      "presets": {
+         "type": "array",
+         "items": {
+            "type": "string"
+         }
+      },
+      "respectGitignore": {
+         "type": "boolean"
+      },
+      "ignoreFiles": {
+         "type": "array",
+         "items": {
+            "type": "string"
+         }
+      },
+      "fromList": {
+         "type": "string"
+      },
+      "deterministic": {
+         "type": "boolean"
+      },
+      "manifest": {
+         "type": "boolean",
+         "description": "Emit per-file MANIFEST.json and zip .sha256"
+      },
+      "manifestPath": {
+         "type": "string",
+         "description": "Where to write external manifest (defaults next to zip)"
+      }
+   },
+   "required": [
+      "out"
+   ],
+   "additionalProperties": false
+}
