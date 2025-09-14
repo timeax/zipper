@@ -1,17 +1,19 @@
 # Zipper
 
-A flexible project archiver and configuration-based zipping tool. Zipper lets you define which files to include/exclude in your project archives using a simple `.zipconfig` file or presets. It works great for Laravel, Node.js, Inertia apps, or any custom setup.
+A flexible project archiver and configuration‑based zipping tool. Define what goes into your archives with a simple `.zipconfig` file, **stubs**, and **presets**. First‑class workflows for Laravel, Node, and Inertia projects.
 
 ---
 
 ## ✨ Features
 
-* **Config-driven**: Use a `.zipconfig` file to declare includes, excludes, presets.
-* **Stubs**: Predefined config templates (`.stub` files) for Laravel, Node, Inertia, etc.
-* **Presets**: Built-in and user-defined presets for reusable include/exclude patterns.
-* **Global stubs/presets**: Store your own defaults under `~/.config/zipper/` for reuse.
-* **CLI commands**: Easy to init, build, list, export, import, and migrate presets.
-* **Cross-platform**: Works on Linux, macOS, and Windows.
+* **Config‑driven**: `.zipconfig` (YAML/JSON) controls include/exclude, presets, output, etc.
+* **Stubs**: Ready‑made config templates (e.g. `laravel.stub`, `node.stub`, `inertia.stub`).
+* **Built‑ins always available**: The CLI **always** searches bundled stubs in the package, in addition to local and global.
+* **Presets**: Reusable include/exclude bundles (built‑in + user presets).
+* **Global stubs & presets**: Keep your organization defaults under `~/.config/zipper/`.
+* **Interactive UX**: TUI pickers for migrating presets and selecting stubs.
+* **CLI niceties**: `pack` (with `build` alias), dry‑run, respect `.gitignore`, manifest emit, list files from `--from`.
+* **Cross‑platform**: Linux, macOS, Windows.
 
 ---
 
@@ -21,7 +23,7 @@ A flexible project archiver and configuration-based zipping tool. Zipper lets yo
 npm install -g @timeax/zipper
 ```
 
-You can also install locally in a project:
+Local (per‑project):
 
 ```bash
 npm install --save-dev @timeax/zipper
@@ -29,110 +31,79 @@ npm install --save-dev @timeax/zipper
 
 ---
 
+## 🚀 Quick Start
+
+```bash
+# 1) Create a config from a stub (auto‑discovers local, global, and built‑in stubs)
+zipper init laravel
+
+# 2) Preview what will be packed
+zipper pack --dry-run
+
+# 3) Create the archive
+zipper pack --out dist/project.zip
+```
+
+> Prefer `pack` (similar to `npm pack`). `build` remains as a hidden alias for convenience.
+
+---
+
 ## 🛠 Usage
 
-### 1. Initialize config
+### Init a config from stubs
 
 ```bash
+# Non‑interactive by name
 zipper init laravel
+
+# Interactive menu (shows Local / Global / Built‑in)
+zipper init --interactive
+
+# Use a local stubs folder explicitly (if you’re inside ./stubs, use --dir .)
+zipper init inertia --dir stubs
 ```
 
-This creates a `.zipconfig` file in your project root using the `laravel.stub` template.
+**Stub resolution order**: Local `./stubs/` → Global dir(s) → **Built‑in** (always checked).
 
-* If you omit the extension, `.stub` is assumed.
-* Stubs are searched locally (`./stubs/`) and globally (`~/.config/zipper/stubs`).
-
-### 2. Build an archive
+### Pack an archive
 
 ```bash
-zipper build
+zipper pack [options]
 ```
 
-By default, this reads `.zipconfig`, includes/excludes files, and produces `project.zip`.
-
-Options:
+Common flows:
 
 ```bash
-zipper build --out ./dist/my-app.zip
-zipper build --config ./custom-config.yml
+zipper pack --out ./dist/my-app.zip
+zipper pack --config ./custom-config.yml
+zipper pack --config laravel        # resolves laravel.stub (local→global→built‑in)
+zipper pack --dry-run               # print final file list
 ```
 
-### 3. Presets
+All options:
 
-Use presets to avoid repeating config across multiple projects.
+* `--config <path>`: Path to config file. If no extension, `.stub` is assumed and resolved via Local/Global/Built‑in.
+* `--out <path>`: Output zip path (overrides config field).
+* `--include <globs...>`: Extra include globs.
+* `--exclude <globs...>`: Extra exclude globs.
+* `--order <string>`: Rule order; `include,exclude` (default) or `exclude,include`.
+* `--root <path>`: Project root for scanning.
+* `--dry-run`: Print final file list and exit.
+* `--respect-gitignore`: Also exclude files from `.gitignore`.
+* `--from <path>`: Read additional paths (one per line) from a file.
+* `--ignore-file <paths...>`: Extra ignore files (defaults include `.zipignore`).
+* `--no-manifest`: Disable manifest emission.
+* `--manifest-path <path>`: Write manifest to an external path.
 
-```yaml
-# .zipconfig
-global: true
-include:
-  - app/**
-exclude:
-  - vendor/**
-presets:
-  - laravel-basic
-  - my-company.inertia
-```
-
-Built-in presets:
-
-* `laravel-basic`
-* `laravel-no-vendor`
-* `node-module`
-
-#### Listing & showing
+Alias:
 
 ```bash
-zipper preset ls
-zipper preset show laravel-basic --format yaml
-```
-
-#### Adding & removing
-
-```bash
-# Create from existing .zipconfig
-zipper preset add my-company.laravel --from .zipconfig
-
-# Add quickly via CLI
-zipper preset add node-ci --include dist/** --exclude node_modules/**
-
-# Remove a user preset
-zipper preset rm my-company.laravel
-```
-
-#### Exporting & importing
-
-```bash
-# Export a preset to a YAML file
-zipper preset export laravel-basic --to laravel-basic.yml
-
-# Import a preset from a stub/config file
-zipper preset import inertia-prod --from stubs/inertia-prod.stub
-```
-
-#### Renaming
-
-```bash
-zipper preset rename old-name new-name
-```
-
-#### Migrating in bulk
-
-```bash
-# Interactive multi-select
-zipper preset migrate --include-globals
-
-# Non-interactive: migrate everything
-zipper preset migrate --all
-
-# Dry run
-zipper preset migrate --all --dry-run
+zipper build [options]
 ```
 
 ---
 
-## 📑 `.zipconfig` Format
-
-YAML or JSON supported. Example:
+## 📑 `.zipconfig` format
 
 ```yaml
 # .zipconfig
@@ -145,94 +116,97 @@ exclude:
 presets:
   - laravel-basic
 out: dist/project.zip
+respectGitignore: true
+order: [exclude, include]  # let includes punch holes back in
 ```
 
-Fields:
+**Fields**
 
 * `include`: glob patterns to include
 * `exclude`: glob patterns to ignore
 * `presets`: array of preset names
 * `out`: output file path
+* `respectGitignore`: when true, treat `.gitignore` lines as excludes
+* `order`: apply rule precedence (`[include,exclude]` or `[exclude,include]`)
 
 ---
 
-## 📂 Stubs
+## 📂 Stubs (manage templates)
 
-Zipper ships with stubs under `stubs/`:
+Zipper ships with built‑in stubs (e.g. `laravel.stub`, `node.stub`, `inertia.stub`). You can also keep:
 
-* `node.stub`
-* `laravel.stub`
-* `inertia.stub`
+* **Local**: `./stubs/`
+* **Global**: `~/.config/zipper/stubs/` (Windows: `%USERPROFILE%\.config\zipper\stubs` or `%USERPROFILE%\.zipper\stubs`)
 
-Users can also:
-
-* Place custom stubs in `./stubs/`
-* Place global stubs in `~/.config/zipper/stubs/`
-
-Commands:
+**Commands (grouped):**
 
 ```bash
+# List local / global / built‑in
 zipper stub ls
-zipper stub add stubs/custom.stub
+
+# Print a stub to stdout (name optional → interactive picker)
+zipper stub cat              # picker
+zipper stub cat laravel      # by name
+
+# Copy a stub file to a destination (creates dirs; use --force to overwrite)
+zipper stub cp laravel ./.zipconfig          
+zipper stub cp inertia ./stubs/inertia.stub  
+
+# Add an existing file into your global stubs
+zipper stub add stubs/custom.stub --to ~/.config/zipper/stubs
 ```
 
 ---
 
-## 🌍 Global Presets & Stubs
+## 🧩 Presets (reusable rule bundles)
 
-User presets and stubs are stored under:
+Use presets to avoid repeating include/exclude rules across projects.
 
-* `~/.config/zipper/presets`
-* `~/.config/zipper/stubs`
+Built‑in presets:
 
-You can override the location with environment variables:
+* `laravel-basic`
+* `laravel-no-vendor`
+* `node-module`
+
+**Commands (grouped):**
 
 ```bash
-export ZIPPER_PRESETS="$HOME/dev/zipper-presets"
-export ZIPPER_STUBS="$HOME/dev/zipper-stubs"
+# Discover & inspect
+zipper preset ls
+zipper preset show laravel-basic --format yaml
+
+# Create from a config/stub or ad‑hoc
+zipper preset add my-company.laravel --from .zipconfig
+zipper preset add node-ci --include dist/** --exclude tests/**
+
+# Export / import
+zipper preset export laravel-basic --to laravel-basic.yml
+zipper preset import inertia-prod --from stubs/inertia-prod.stub
+
+# Rename / remove
+zipper preset rename old-name new-name
+zipper preset rm my-company.laravel
+
+# Migrate in bulk (interactive picker by default)
+zipper preset migrate --include-globals
+zipper preset migrate --all          # non‑interactive (select all)
+zipper preset migrate --all --dry-run
 ```
 
-Windows PowerShell:
+**Merge order** (later wins):
 
-```powershell
-$env:ZIPPER_PRESETS = "$HOME\.zipper\presets"
-$env:ZIPPER_STUBS   = "$HOME\.zipper\stubs"
-```
+1. Defaults → 2) **Presets** (listed order) → 3) `.zipconfig` → 4) **CLI flags**
+
+If two rules conflict, `order` determines who can re‑include:
+
+* `order: [include, exclude]` (default): excludes win last
+* `order: [exclude, include]`: includes can re‑add specifics
 
 ---
 
-## 🔌 Example Workflows
+## 🎮 Interactive demos
 
-### Laravel app
-
-```bash
-cd laravel-app
-zipper init laravel
-zipper build --out build/laravel-app.zip
-```
-
-### Node package
-
-```bash
-cd node-lib
-zipper init node
-zipper preset add node-publish --include dist/** --exclude tests/**
-zipper build --config .zipconfig --out dist/lib.zip
-```
-
-### Inertia.js project
-
-```bash
-cd inertia-site
-zipper init inertia
-zipper build --out dist/site.zip
-```
-
----
-
-## 🎮 Interactive Examples
-
-### Preset multi-select (migrate)
+### Preset multi‑select (migrate)
 
 ```text
 $ zipper preset migrate --include-globals
@@ -247,9 +221,7 @@ Use ↑/↓, space to toggle, 'a' = toggle all, Enter to confirm
 2/3 selected
 ```
 
-When confirmed, the selected files are converted into user presets.
-
-### Dry-run preview
+### Dry‑run preview
 
 ```text
 $ zipper pack --dry-run
@@ -265,50 +237,63 @@ config/app.php
 
 ---
 
-## 🧾 `pack` Command Options
+## 🌍 Global locations
 
-The `pack` command builds a zip archive from your project.
+* Presets: `~/.config/zipper/presets`
+* Stubs:   `~/.config/zipper/stubs`
+
+Environment overrides:
 
 ```bash
-zipper pack [options]
+export ZIPPER_PRESETS="$HOME/dev/zipper-presets"
+export ZIPPER_STUBS="$HOME/dev/zipper-stubs"
 ```
 
-Options:
+Windows PowerShell:
 
-* `--config <path>`: Path to config file (if no extension, `.stub` is assumed).
-* `--out <path>`: Output zip path (overrides config).
-* `--include <globs...>`: Additional include glob patterns.
-* `--exclude <globs...>`: Additional exclude glob patterns.
-* `--order <string>`: Rule order; choices: `include,exclude` or `exclude,include`.
-* `--root <path>`: Project root for scanning.
-* `--dry-run`: Print final file list and exit.
-* `--respect-gitignore`: Exclude files matching `.gitignore`.
-* `--from <path>`: Read additional paths (one per line) from this file.
-* `--ignore-file <paths...>`: Additional ignore files (defaults to `.zipignore`).
-* `--no-manifest`: Disable manifest emission.
-* `--manifest-path <path>`: External manifest write path.
-
-Alias:
-
-```bash
-zipper build [options]
+```powershell
+$env:ZIPPER_PRESETS = "$HOME\.zipper\presets"
+$env:ZIPPER_STUBS   = "$HOME\.zipper\stubs"
 ```
 
 ---
 
-## 📹 GIF Workflows
+## 📘 Notes
 
-> To be added: terminal GIF demos showing `init → pack → preset migrate` workflows.
-> Suggested tools: [asciinema](https://asciinema.org/) or [terminalizer](https://github.com/faressoft/terminalizer).
+* When `respectGitignore` is enabled, `.gitignore` rules are applied as **excludes**.
 
-Example workflow:
+* By default, the order is `[include, exclude]` → excludes win.
 
-1. `zipper init laravel`
-2. `zipper pack --dry-run`
-3. `zipper preset migrate --include-globals`
+* To allow includes to override `.gitignore`, set:
+
+  ```yaml
+  order: [exclude, include]
+  ```
+
+* This ensures you can re‑include specific files or folders even if ignored by Git.
+
+* If you are **inside** the `stubs/` directory, use `--dir .` when targeting local stubs.
+
+* Built‑in stubs are **always** checked; you can reference them by base name (e.g. `laravel`).
 
 ---
 
+## 📹 GIF workflows (optional)
+
+Suggested tools:
+
+* **asciinema** → lightweight, shareable casts: [https://asciinema.org/](https://asciinema.org/)
+* **terminalizer** → GIFs from scripts: [https://github.com/faressoft/terminalizer](https://github.com/faressoft/terminalizer)
+
+Suggested script:
+
+1. `zipper stub ls`
+2. `zipper init laravel`
+3. `zipper pack --dry-run`
+4. `zipper preset migrate --include-globals`
+5. `zipper pack --out dist/app.zip`
+
+---
 
 ## 🤝 Contributing
 
@@ -317,19 +302,6 @@ Example workflow:
 3. Add/update stubs or presets
 4. Run tests (`npm test`)
 5. Submit a PR
-
----
-
-## 📘 Notes
-
-* When `respectGitignore` is enabled, `.gitignore` rules are applied as **excludes**.
-* By default, the order is `[include, exclude]` → excludes win.
-* To allow includes to override `.gitignore`, set:
-
-  ```yaml
-  order: [exclude, include]
-  ```
-* This ensures you can re-include specific files or folders even if ignored by Git.
 
 ---
 
