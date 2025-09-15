@@ -48,8 +48,9 @@ export function buildGroupZipMapper(cfg: ZipConfig) {
 
       const g = compiled[winnerIdx];
       if (winnerMode === "file") {
-         // explicit file → drop parent folders; keep only basename under target
-         return joinZip(g.target, path.posix.basename(rel));
+         const base = path.posix.basename(rel);
+         if (base === "" || base === "." || base === "/") return joinZip(g.target, rel);
+         return joinZip(g.target, base);
       }
       // glob mode → keep relative structure under target
       return joinZip(g.target, rel);
@@ -74,4 +75,13 @@ function joinZip(prefix: string, rel: string): string {
 
 function normRel(p: string): string {
    return p.replaceAll("\\", "/").replace(/^\.?\//, "");
+}
+
+// right after you’ve resolved cfg (presets applied), before buildFileList:
+export function mergeGroupFilesIntoInclude(cfg: ZipConfig) {
+   const files = Object.values(cfg.groups ?? {})
+      .flatMap(g => g.files ?? [])
+      .map(s => s.replaceAll("\\", "/").replace(/^\.?\//, ""));
+   if (!files.length) return;
+   cfg.include = [...new Set([...(cfg.include ?? []), ...files])];
 }
