@@ -23,7 +23,8 @@
     "build": "tsup src/cli.ts src/index.ts --format esm --sourcemap --dts --clean",
     "dev": "tsx src/cli.ts",
     "test:dry": "node dist/cli.js pack --respect-gitignore --dry-run",
-    "prepublishOnly": "npm run build && npm version patch --no-git-tag-version"
+    "prepublishOnly": "npm run build && npm version patch --no-git-tag-version",
+    "install:global": "npm uninstall -g @timeax/zipper && npm install -g timeax/zipper"
   },
   "dependencies": {
     "ajv": "^8.17.1",

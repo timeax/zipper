@@ -1,11 +1,10 @@
-#!/usr/bin/env node
 import { hideBin } from "yargs/helpers";
 import yargs from "yargs";
 import pc from "picocolors";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
-import { appendStubIfNoExt } from "./config.js";
+import { appendStubIfNoExt, loadConfig, loadListFile, readIgnoreFiles } from "./config.js";
 // add imports near top
 import { getAllPresets } from "./presets.js";
 import { saveUserPreset, removeUserPreset, loadUserPresets } from "./user-presets.js";
@@ -13,6 +12,8 @@ import YAML from "yaml";
 import { getBuiltinStubDir, getGlobalStubDirs } from "./utils.js";
 import { handlePack } from "./handle-pack.js";
 import picomatch from "picomatch";
+import { buildGroupZipMapper } from "./groups.js";
+import { buildFileList } from "./pack";
 /* ------------------------------- tiny helpers ------------------------------- */
 // 1) Extract the handler so both commands reuse it
 
@@ -380,7 +381,7 @@ await yargs(hideBin(process.argv))
 
                if (args.from) {
                   const fp = String(args.from);
-                  const raw = await (await import("node:fs/promises")).readFile(fp, "utf8");
+                  const raw = await fs.readFile(fp, "utf8");
                   let src: any; try { src = fp.endsWith(".json") ? JSON.parse(raw) : YAML.parse(raw); }
                   catch { console.error("Failed to parse --from file."); process.exit(2); }
                   const cfg = src?.zipper ?? src ?? {};
@@ -756,9 +757,6 @@ Searched:
             .option("preprocess-binary-mode", { type: "string", choices: ["skip", "pass", "buffer"] as const, desc: "Binary file behavior" })
             .option("verbose", { type: "boolean", default: false, desc: "Print extra details" })
             , async (args) => {
-               const pc = (await import("picocolors")).default;
-               const path = (await import("node:path")).default;
-               const fs = (await import("node:fs/promises"));
                const { loadConfig, loadListFile, readIgnoreFiles, loadPreprocessHandlers } = await import("./config");
                const { buildFileList } = await import("./pack");
                const { runPreprocessPipeline } = await import("./preprocess");
@@ -881,12 +879,6 @@ Searched:
             .option("glob", { type: "array", desc: "Restrict scan to these globs (repeatable)" })
             .option("verbose", { type: "boolean", default: false, desc: "Print extra details" })
             , async (args) => {
-               const pc = (await import("picocolors")).default;
-               const path = (await import("node:path")).default;
-               const { loadConfig, loadListFile, readIgnoreFiles } = await import("./config");
-               const { buildFileList } = await import("./pack");
-               const { buildGroupZipMapper } = await import("./groups");
-
                const { cfg, filepath } = await loadConfig(args.config as string | undefined);
                const groups = cfg.groups ?? {};
                const names = Object.keys(groups);
