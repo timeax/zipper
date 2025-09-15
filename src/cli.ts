@@ -12,6 +12,7 @@ import { saveUserPreset, removeUserPreset, loadUserPresets } from "./user-preset
 import YAML from "yaml";
 import { getBuiltinStubDir, getGlobalStubDirs } from "./utils.js";
 import { handlePack } from "./handle-pack.js";
+import picomatch from "picomatch";
 /* ------------------------------- tiny helpers ------------------------------- */
 // 1) Extract the handler so both commands reuse it
 
@@ -885,7 +886,6 @@ Searched:
                const { loadConfig, loadListFile, readIgnoreFiles } = await import("./config");
                const { buildFileList } = await import("./pack");
                const { buildGroupZipMapper } = await import("./groups");
-               const picomatch = (await import("picomatch")).default;
 
                const { cfg, filepath } = await loadConfig(args.config as string | undefined);
                const groups = cfg.groups ?? {};
