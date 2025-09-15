@@ -117,7 +117,7 @@ export const PRESETS: PresetMap = {
             exclude: ["public/hot", "public/storage/**", "public/*.map", "public/**/*.map", "public/index.php", "public/.htaccess"]
          },
 
-         "./": {
+         root: {
             target: "",
             priority: 100,
             include: [
