@@ -5,50 +5,16 @@ import pc from "picocolors";
 import path from "node:path";
 import os from "node:os";
 import fs from "node:fs/promises";
-import { loadConfig, loadListFile, readIgnoreFiles, appendStubIfNoExt } from "./config.js";
-import { buildFileList, writeZip } from "./pack.js";
-import type { Order } from "./types.js";
+import { appendStubIfNoExt } from "./config.js";
 // add imports near top
-import { PRESETS, getAllPresets } from "./presets.js";
-import { saveUserPreset, removeUserPreset, loadUserPresets, getPresetDirs, ensureUserPresetDir } from "./user-presets.js";
+import { getAllPresets } from "./presets.js";
+import { saveUserPreset, removeUserPreset, loadUserPresets } from "./user-presets.js";
 import YAML from "yaml";
 import { getBuiltinStubDir, getGlobalStubDirs } from "./utils.js";
+import { handlePack } from "./handle-pack.js";
 /* ------------------------------- tiny helpers ------------------------------- */
 // 1) Extract the handler so both commands reuse it
-async function handlePack(args: any) {
-   const { cfg, filepath } = await loadConfig(args.config as string | undefined);
 
-   if (args.out) cfg.out = String(args.out);
-   if (args.root) cfg.root = String(args.root);
-   if (args.include?.length) cfg.include = [...(cfg.include ?? []), ...args.include.map(String)];
-   if (args.exclude?.length) cfg.exclude = [...(cfg.exclude ?? []), ...args.exclude.map(String)];
-   if (args.order) cfg.order = (String(args.order).split(",") as Order);
-   if (typeof args["respect-gitignore"] === "boolean") cfg.respectGitignore = args["respect-gitignore"];
-   if (args["ignore-file"]?.length) cfg.ignoreFiles = [...(cfg.ignoreFiles ?? []), ...args["ignore-file"].map(String)];
-   if (args["no-manifest"]) cfg.manifest = false;
-   if (args["manifest-path"]) cfg.manifestPath = String(args["manifest-path"]);
-
-   const root = path.resolve(process.cwd(), cfg.root ?? ".");
-   const listExtra = loadListFile(root, args.from as string | undefined);
-   const extraIgnore = readIgnoreFiles(root, cfg.ignoreFiles);
-
-   const files = await buildFileList(cfg, listExtra, extraIgnore);
-
-   if (args["dry-run"]) {
-      console.log(pc.dim(`# Config: ${filepath ?? "(defaults)"}  Root: ${cfg.root}`));
-      files.forEach(f => console.log(f));
-      console.log(pc.green(`\n${files.length} files selected.`));
-      return;
-   }
-
-   if (!files.length) {
-      console.error(pc.red("No files matched your rules. Nothing to zip."));
-      process.exit(2);
-   }
-
-   const out = await writeZip(cfg, files);
-   console.log(pc.green(`✔ wrote ${out} (${files.length} files)`));
-}
 ///===
 async function fileExists(p: string) {
    try { await fs.access(p); return true; } catch { return false; }
@@ -261,34 +227,7 @@ async function resolveStubPath(name: string, localDir: string, globalDirs: strin
 
 await yargs(hideBin(process.argv))
    .scriptName("zipper")
-   /* ----------------------------- preset show <name> ----------------------------- */
-   .command("preset show <name>", "Show a preset’s include/exclude rules", y => y
-      .positional("name", { type: "string", demandOption: true })
-      .option("format", { type: "string", choices: ["json", "yaml"], default: "json", describe: "Output format" })
-      .option("pretty", { type: "boolean", default: true, describe: "Pretty-print JSON" })
-      , async (args) => {
-         const name = String(args.name);
-         const p = PRESETS[name];
-         if (!p) {
-            console.error(`Preset "${name}" not found. Try: zipper preset ls`);
-            process.exit(2);
-         }
-
-         // Only include meaningful fields
-         const out = {
-            name,
-            ...p,
-         };
-
-         const fmt = String(args.format);
-         if (fmt === "yaml") {
-            console.log(YAML.stringify(out));
-         } else {
-            console.log(JSON.stringify(out, null, args.pretty ? 2 : 0));
-         }
-      })
    /* -------------------------------- pack --------------------------------- */
-
    // 2) Register both commands (build is an alias/hidden)
    .command(
       "pack",
@@ -305,7 +244,19 @@ await yargs(hideBin(process.argv))
          .option("from", { type: "string", desc: "Read additional paths (one per line) from this file" })
          .option("ignore-file", { type: "array", desc: "Additional ignore files (.zipignore by default)" })
          .option("no-manifest", { type: "boolean", desc: "Disable manifest emission" })
-         .option("manifest-path", { type: "string", desc: "External manifest write path" }),
+         .option("group", { type: "array", desc: "Only include these group(s) (by name). Others are ignored." })
+         // cli.ts (pack builder additions)
+         .option("preprocess", {
+            type: "array",
+            desc: "Additional preprocess module(s) (.js/.ts) to load (in addition to config)",
+         })
+         .option("list", { type: "boolean", default: false, desc: "Print final zip paths (after groups+preprocess) and exit" })
+
+         .option("no-preprocess", { type: "boolean", default: false, desc: "Disable preprocess pipeline" })
+         .option("strict-preprocess", { type: "boolean", default: false, desc: "Fail on preprocess errors" })
+         .option("preprocess-timeout", { type: "number", desc: "Per-file preprocess timeout (ms)" })
+         .option("preprocess-max-bytes", { type: "number", desc: "Skip preprocess for files bigger than this" })
+         .option("preprocess-binary-mode", { type: "string", choices: ["skip", "pass", "buffer"] as const }),
       handlePack
    )
    .command(
@@ -323,7 +274,18 @@ await yargs(hideBin(process.argv))
          .option("from", { type: "string" })
          .option("ignore-file", { type: "array" })
          .option("no-manifest", { type: "boolean" })
-         .option("manifest-path", { type: "string" }),
+         // cli.ts (pack builder additions)
+         .option("preprocess", {
+            type: "array",
+            desc: "Additional preprocess module(s) (.js/.ts) to load (in addition to config)",
+         })
+         .option("list", { type: "boolean", default: false, desc: "Print final zip paths (after groups+preprocess) and exit" })
+         .option("group", { type: "array", desc: "Only include these group(s) (by name). Others are ignored." })
+         .option("no-preprocess", { type: "boolean", default: false, desc: "Disable preprocess pipeline" })
+         .option("strict-preprocess", { type: "boolean", default: false, desc: "Fail on preprocess errors" })
+         .option("preprocess-timeout", { type: "number", desc: "Per-file preprocess timeout (ms)" })
+         .option("preprocess-max-bytes", { type: "number", desc: "Skip preprocess for files bigger than this" })
+         .option("preprocess-binary-mode", { type: "string", choices: ["skip", "pass", "buffer"] as const }),
       handlePack
    )
 
@@ -773,6 +735,215 @@ Searched:
             })
 
          .demandCommand(1, "Specify a stub subcommand.")
+         .strict()
+   )
+
+   /* =========================== preprocess (group) =========================== */
+   .command(
+      "preprocess",
+      "Preprocessor utilities",
+      (yy) => yy
+         .command("doctor", "Validate preprocess modules and run a small test set", y => y
+            .option("config", { type: "string", desc: "Config path or stub name (YAML/JSON/stub only)" })
+            .option("preprocess", { type: "array", desc: "Extra preprocess module(s) (.js/.ts) to load in addition to config" })
+            .option("sample", { type: "string", desc: "Specific file to run through preprocess (absolute or relative)" })
+            .option("glob", { type: "array", desc: "Glob(s) to select sample files (repeatable)" })
+            .option("limit", { type: "number", default: 10, desc: "Max number of files to test" })
+            .option("strict-preprocess", { type: "boolean", default: false, desc: "Fail on handler errors/timeouts" })
+            .option("preprocess-timeout", { type: "number", desc: "Override per-file timeout (ms)" })
+            .option("preprocess-max-bytes", { type: "number", desc: "Skip preprocess for files bigger than this" })
+            .option("preprocess-binary-mode", { type: "string", choices: ["skip", "pass", "buffer"] as const, desc: "Binary file behavior" })
+            .option("verbose", { type: "boolean", default: false, desc: "Print extra details" })
+            , async (args) => {
+               const pc = (await import("picocolors")).default;
+               const path = (await import("node:path")).default;
+               const fs = (await import("node:fs/promises"));
+               const { loadConfig, loadListFile, readIgnoreFiles, loadPreprocessHandlers } = await import("./config");
+               const { buildFileList } = await import("./pack");
+               const { runPreprocessPipeline } = await import("./preprocess");
+
+               // 1) Load main config (YAML/JSON/stub only; JS/TS are for modules)
+               const { cfg, filepath } = await loadConfig(args.config as string | undefined);
+
+               // 2) CLI overrides for preprocess behavior
+               cfg.preprocess = cfg.preprocess ?? {};
+               if (typeof args["preprocess-timeout"] === "number") cfg.preprocess.timeoutMs = Number(args["preprocess-timeout"]);
+               if (typeof args["preprocess-max-bytes"] === "number") cfg.preprocess.maxBytes = Number(args["preprocess-max-bytes"]);
+               if (typeof args["preprocess-binary-mode"] === "string") cfg.preprocess.binaryMode = String(args["preprocess-binary-mode"]) as any;
+
+               const root = path.resolve(process.cwd(), cfg.root ?? ".");
+               const strict = !!args["strict-preprocess"];
+
+               // 3) Load preprocess handlers from config modules + CLI modules
+               const extraMods = (args["preprocess"] as string[] | undefined)?.map(String) ?? [];
+               const handlers = await loadPreprocessHandlers(cfg, root, extraMods);
+               cfg.preprocess.handlers = [...(cfg.preprocess.handlers ?? []), ...handlers];
+
+               if (!cfg.preprocess.handlers?.length) {
+                  console.error(pc.red("No preprocess handlers found. Add them under `preprocess.modules` in your .zipconfig or pass --preprocess <file>."));
+                  process.exit(2);
+               }
+
+               console.log(pc.dim(`config: ${filepath ?? "(defaults)"}`));
+               if (handlers.length) console.log(pc.dim(`loaded handlers: ${handlers.length} (from modules + inline)`));
+
+               // 4) Collect sample files
+               const sampleSet: string[] = [];
+
+               // 4a) explicit --sample
+               if (args.sample) {
+                  const s = String(args.sample);
+                  const abs = path.isAbsolute(s) ? s : path.join(root, s);
+                  try {
+                     await fs.stat(abs);
+                     sampleSet.push(abs);
+                  } catch {
+                     console.error(pc.red(`Sample not found: ${s}`));
+                     process.exit(2);
+                  }
+               }
+
+               // 4b) from --glob (respect root)
+               const globs = (args.glob as string[] | undefined)?.map(String) ?? [];
+               if (globs.length) {
+                  // Reuse your pack file walker and inject temporary include set
+                  const includeBackup = cfg.include;
+                  cfg.include = globs;
+                  const extraIgnore = readIgnoreFiles(root, cfg.ignoreFiles);
+                  const listExtra = loadListFile(root, undefined);
+                  const picks = await buildFileList(cfg, listExtra, extraIgnore);
+                  for (const p of picks) sampleSet.push(path.join(root, p));
+                  cfg.include = includeBackup;
+               }
+
+               // 4c) else pick a small set from normal pack selection
+               if (!sampleSet.length) {
+                  const extraIgnore = readIgnoreFiles(root, cfg.ignoreFiles);
+                  const listExtra = loadListFile(root, undefined);
+                  const all = await buildFileList(cfg, listExtra, extraIgnore);
+                  for (const rel of all) sampleSet.push(path.join(root, rel));
+               }
+
+               // de-dup and limit
+               const uniq = Array.from(new Set(sampleSet)).slice(0, Math.max(1, Number(args.limit) || 10));
+               if (!uniq.length) {
+                  console.error(pc.red("No files available to test."));
+                  process.exit(2);
+               }
+
+               console.log(pc.dim(`testing ${uniq.length} file(s)`));
+
+               // 5) Run pipeline (re-using your real preprocess engine)
+               try {
+                  const { entries, changedCount, omittedCount } = await runPreprocessPipeline(uniq, root, cfg, { strict });
+
+                  // 6) Pretty print results
+                  const changed = new Set<string>();
+                  const omitted = new Set<string>();
+                  const kept = new Set<string>();
+
+                  // Map back by zipPath/source to determine status
+                  for (const src of uniq) {
+                     // Find corresponding entry/entries by original relative
+                     const rel = path.relative(root, src).replaceAll("\\", "/");
+                     const hit = entries.find(e => e.zipPath === rel);
+                     if (!hit) { omitted.add(rel); continue; }
+                     if ("content" in hit) changed.add(rel);
+                     else kept.add(rel);
+                  }
+
+                  const pad = (s: string, n = 9) => (s + " ".repeat(n)).slice(0, n);
+                  for (const rel of omitted) console.log(`${pc.red(pad("omitted"))} ${rel}`);
+                  for (const rel of changed) console.log(`${pc.yellow(pad("changed"))} ${rel}`);
+                  for (const rel of kept) console.log(`${pc.green(pad("ok"))} ${rel}`);
+
+                  console.log(
+                     `\nSummary: ${pc.yellow(String(changedCount))} changed, ${pc.red(String(omittedCount))} omitted, ${pc.green(String(kept.size))} unchanged`
+                  );
+               } catch (e) {
+                  console.error(pc.red(`preprocess doctor failed: ${(e as Error).message}`));
+                  if (strict) process.exit(2);
+               }
+            })
+         .demandCommand(1, "Specify a preprocess subcommand.")
+         .strict()
+   )
+
+   /* ============================== group (UX) ============================== */
+   .command(
+      "group",
+      "Group utilities",
+      (yy) => yy
+         .command("ls", "List groups and show sample matches", y => y
+            .option("config", { type: "string", desc: "Config path or stub name" })
+            .option("limit", { type: "number", default: 5, desc: "Max examples per group" })
+            .option("glob", { type: "array", desc: "Restrict scan to these globs (repeatable)" })
+            .option("verbose", { type: "boolean", default: false, desc: "Print extra details" })
+            , async (args) => {
+               const pc = (await import("picocolors")).default;
+               const path = (await import("node:path")).default;
+               const { loadConfig, loadListFile, readIgnoreFiles } = await import("./config");
+               const { buildFileList } = await import("./pack");
+               const { buildGroupZipMapper } = await import("./groups");
+               const picomatch = (await import("picomatch")).default;
+
+               const { cfg, filepath } = await loadConfig(args.config as string | undefined);
+               const groups = cfg.groups ?? {};
+               const names = Object.keys(groups);
+
+               if (!names.length) {
+                  console.log("(no groups defined)");
+                  return;
+               }
+
+               const root = path.resolve(process.cwd(), cfg.root ?? ".");
+               const includeBackup = cfg.include;
+
+               // Optional scan limiter
+               const globs = (args.glob as string[] | undefined)?.map(String) ?? [];
+               if (globs.length) cfg.include = globs;
+
+               const listExtra = loadListFile(root, undefined);
+               const extraIgnore = readIgnoreFiles(root, cfg.ignoreFiles);
+               const relFiles = await buildFileList(cfg, listExtra, extraIgnore);
+
+               // restore include
+               cfg.include = includeBackup;
+
+               // Precompile include/exclude for counts
+               const compiled = names.map(n => {
+                  const g = groups[n];
+                  const inc = (g.include ?? []).map(p => picomatch(p, { dot: true }));
+                  const exc = (g.exclude ?? []).map(p => picomatch(p, { dot: true }));
+                  const matches = relFiles.filter(r => inc.some(m => m(r)) && !exc.some(m => m(r)));
+                  return { name: n, target: g.target, priority: g.priority ?? 0, matches };
+               });
+
+               // Pretty print
+               console.log(pc.dim(`config: ${filepath ?? "(defaults)"}  root: ${cfg.root ?? "."}`));
+               const { map } = buildGroupZipMapper(cfg);
+
+               for (const g of compiled.sort((a, b) => (b.priority - a.priority) || a.name.localeCompare(b.name))) {
+                  console.log(pc.bold(`${g.name}`) + pc.dim(`  → ${g.target || "(root)"}  [priority ${g.priority}]  (${g.matches.length} files)`));
+                  const ex = g.matches.slice(0, Math.max(1, Number(args.limit) || 5));
+                  for (const rel of ex) {
+                     const mapped = map(rel);
+                     const tag = mapped !== rel ? "→" : " ";
+                     console.log(`  ${pc.dim(rel)} ${tag} ${mapped}`);
+                  }
+                  if (g.matches.length > ex.length) {
+                     console.log(pc.dim(`  … +${g.matches.length - ex.length} more`));
+                  }
+               }
+
+               // Files matched by no group (optional extra line)
+               if (args.verbose) {
+                  const allMatched = new Set(compiled.flatMap(c => c.matches));
+                  const unmatched = relFiles.filter(r => !allMatched.has(r));
+                  console.log(pc.dim(`\nUnmatched (kept at original path): ${unmatched.length}`));
+               }
+            })
+         .demandCommand(1, "Specify a group subcommand.")
          .strict()
    )
 

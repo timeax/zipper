@@ -1,6 +1,6 @@
 # Zipper
 
-A flexible project archiver and configuration‑based zipping tool. Define what goes into your archives with a simple `.zipconfig` file, **stubs**, and **presets**. First‑class workflows for Laravel, Node, and Inertia projects.
+A flexible project archiver and configuration‑based zipping tool. Define what goes into your archives with a simple `.zipconfig` file, **stubs**, **presets**, **groups**, and **preprocess hooks**. First‑class workflows for Laravel, Node, and Inertia projects.
 
 ---
 
@@ -10,9 +10,11 @@ A flexible project archiver and configuration‑based zipping tool. Define what 
 * **Stubs**: Ready‑made config templates (e.g. `laravel.stub`, `node.stub`, `inertia.stub`).
 * **Built‑ins always available**: The CLI **always** searches bundled stubs in the package, in addition to local and global.
 * **Presets**: Reusable include/exclude bundles (built‑in + user presets).
-* **Global stubs & presets**: Keep your organization defaults under `~/.config/zipper/`.
+* **Groups**: Map matched files into virtual folders in the archive (e.g. `src/`, `web/`, `docs/`).
+* **Preprocess (JS/TS)**: Run transform callbacks on matched files **at pack time** without touching source.
+* **Diagnostics**: `preprocess doctor` to validate modules and preview changes.
 * **Interactive UX**: TUI pickers for migrating presets and selecting stubs.
-* **CLI niceties**: `pack` (with `build` alias), dry‑run, respect `.gitignore`, manifest emit, list files from `--from`.
+* **CLI niceties**: `pack` (with `build` alias), dry‑run, `--list` (final zip paths), respect `.gitignore`, manifest emit, list files from `--from`.
 * **Cross‑platform**: Linux, macOS, Windows.
 
 ---
@@ -37,7 +39,7 @@ npm install --save-dev @timeax/zipper
 # 1) Create a config from a stub (auto‑discovers local, global, and built‑in stubs)
 zipper init laravel
 
-# 2) Preview what will be packed
+# 2) Preview what will be packed (scanner output)
 zipper pack --dry-run
 
 # 3) Create the archive
@@ -77,7 +79,8 @@ Common flows:
 zipper pack --out ./dist/my-app.zip
 zipper pack --config ./custom-config.yml
 zipper pack --config laravel        # resolves laravel.stub (local→global→built‑in)
-zipper pack --dry-run               # print final file list
+zipper pack --dry-run               # print pre-zip selection (scanner output)
+zipper pack --list                  # print final zip paths (after groups + preprocess)
 ```
 
 All options:
@@ -88,12 +91,15 @@ All options:
 * `--exclude <globs...>`: Extra exclude globs.
 * `--order <string>`: Rule order; `include,exclude` (default) or `exclude,include`.
 * `--root <path>`: Project root for scanning.
-* `--dry-run`: Print final file list and exit.
+* `--dry-run`: Print file list **before** grouping/preprocess.
+* `--list`: Print final **zip paths** (after groups + preprocess) and exit.
+* `--group <names...>`: Only include these group(s) by name.
 * `--respect-gitignore`: Also exclude files from `.gitignore`.
 * `--from <path>`: Read additional paths (one per line) from a file.
 * `--ignore-file <paths...>`: Extra ignore files (defaults include `.zipignore`).
 * `--no-manifest`: Disable manifest emission.
 * `--manifest-path <path>`: Write manifest to an external path.
+* **Preprocess flags**: `--no-preprocess`, `--strict-preprocess`, `--preprocess-timeout <ms>`, `--preprocess-max-bytes <n>`, `--preprocess-binary-mode <skip|pass|buffer>`, `--preprocess <modules...>` (adds modules in addition to config).
 
 Alias:
 
@@ -103,7 +109,9 @@ zipper build [options]
 
 ---
 
-## 📑 `.zipconfig` format
+## 📑 `.zipconfig` format (YAML/JSON)
+
+Minimal:
 
 ```yaml
 # .zipconfig
@@ -120,14 +128,68 @@ respectGitignore: true
 order: [exclude, include]  # let includes punch holes back in
 ```
 
-**Fields**
+### Groups (virtual folders in the zip)
 
-* `include`: glob patterns to include
-* `exclude`: glob patterns to ignore
-* `presets`: array of preset names
-* `out`: output file path
-* `respectGitignore`: when true, treat `.gitignore` lines as excludes
-* `order`: apply rule precedence (`[include,exclude]` or `[exclude,include]`)
+```yaml
+# Map matched files into folders inside the archive
+groups:
+  backend:
+    target: src/
+    include: ["app/**", "config/**"]
+    exclude: ["app/Debug/**"]
+    priority: 10  # higher wins when multiple groups match
+
+  frontend:
+    target: web/
+    include: ["resources/js/**", "resources/css/**", "public/**"]
+    files: ['resources/views/index.blade.php'] # included as web/index.blade.php
+    priority: 5
+
+  docs:
+    target: docs/
+    include: ["README.md", "docs/**"]
+```
+
+* Files matching a group are placed under its `target` path inside the zip.
+* If multiple groups match, **higher `priority` wins**; ties are resolved by later‑defined groups.
+* Files that match **no group** are kept at their original relative path.
+* Use `--group name` to include only specific groups.
+
+### Preprocess (JS/TS modules only)
+
+> JS/TS files are **not** full configs; they only export preprocess handlers. Reference them from YAML/JSON via `preprocess.modules`.
+
+```yaml
+preprocess:
+  modules:
+    - ./zip.preprocess.ts
+    - ./more-hooks.js
+  includes: ["**/*.html", "**/*.js"]      # which files should be considered for preprocess
+  excludes: ["**/*.min.js"]
+  files: ["README.md"]                      # explicit additions
+  maxBytes: 5242880                           # skip preprocess for files larger than this (still included)
+  binaryMode: pass                            # skip | pass | buffer
+  timeoutMs: 10000
+```
+
+**Module shape** (`zip.preprocess.ts`):
+
+```ts
+import type { PreprocessHandler } from '@timeax/zipper';
+
+export const handlers: PreprocessHandler[] = [
+  ({ stats, content, ctx }) => {
+    if (stats.ext !== '.html' && stats.ext !== '.js') return;
+    let s = content.toString('utf8')
+      .replaceAll('__APP__', ctx.env.APP_NAME ?? 'ZipperApp')
+      .replaceAll('__BUILD__', ctx.buildId);
+    return Buffer.from(s, 'utf8');
+  },
+  ({ stats }) => (stats.name.endsWith('.log') && stats.size > 128 * 1024 ? null : undefined),
+];
+
+export default handlers; // default or named export both supported
+```
 
 ---
 
@@ -156,6 +218,8 @@ zipper stub cp inertia ./stubs/inertia.stub
 zipper stub add stubs/custom.stub --to ~/.config/zipper/stubs
 ```
 
+> If you are **inside** the `stubs/` directory, use `--dir .` when targeting local stubs.
+
 ---
 
 ## 🧩 Presets (reusable rule bundles)
@@ -167,6 +231,7 @@ Built‑in presets:
 * `laravel-basic`
 * `laravel-no-vendor`
 * `node-module`
+* `inertia`
 
 **Commands (grouped):**
 
@@ -204,6 +269,36 @@ If two rules conflict, `order` determines who can re‑include:
 
 ---
 
+## 🧭 Groups UX
+
+```bash
+# List groups with targets, priority, and sample matches
+zipper group ls
+
+# Restrict scan for examples
+zipper group ls --glob "app/**" --glob "resources/**" --limit 10 --verbose
+
+# Pack only certain groups
+zipper pack --group backend --group docs --list
+```
+
+---
+
+## 🧪 Preprocess diagnostics
+
+```bash
+# Validate modules + run a small test set
+zipper preprocess doctor
+
+# Add extra modules from CLI and limit to globs
+zipper preprocess doctor --preprocess ./zip.preprocess.ts --glob "resources/**/*.js" --limit 8
+
+# Fail on handler errors/timeouts
+zipper preprocess doctor --strict-preprocess
+```
+
+---
+
 ## 🎮 Interactive demos
 
 ### Preset multi‑select (migrate)
@@ -235,6 +330,16 @@ config/app.php
 152 files selected.
 ```
 
+### Final zip path preview (after groups + preprocess)
+
+```text
+$ zipper pack --list
+web/resources/js/app.js
+src/app/Models/User.php
+docs/README.md
+...
+```
+
 ---
 
 ## 🌍 Global locations
@@ -260,6 +365,8 @@ $env:ZIPPER_STUBS   = "$HOME\.zipper\stubs"
 
 ## 📘 Notes
 
+* Built‑in stubs are **always** checked; you can reference them by base name (e.g. `laravel`).
+
 * When `respectGitignore` is enabled, `.gitignore` rules are applied as **excludes**.
 
 * By default, the order is `[include, exclude]` → excludes win.
@@ -271,10 +378,6 @@ $env:ZIPPER_STUBS   = "$HOME\.zipper\stubs"
   ```
 
 * This ensures you can re‑include specific files or folders even if ignored by Git.
-
-* If you are **inside** the `stubs/` directory, use `--dir .` when targeting local stubs.
-
-* Built‑in stubs are **always** checked; you can reference them by base name (e.g. `laravel`).
 
 ---
 

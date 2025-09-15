@@ -37,7 +37,85 @@ export interface ZipConfig {
    /**additional ignore files (.zipignore etc.) */
    ignoreFiles?: string[];
 
-   
+
    manifest?: boolean;               // default true
    manifestPath?: string;            // optional external path override
+
+   preprocess?: PreprocessConfig;
+
+   groups?: Record<string, GroupConfig>;
 }
+
+
+export type PreprocessConfig = {
+   includes?: string[];
+   excludes?: string[];
+   files?: string[]; // explicit whitelist (in addition to include globs)
+   handlers?: Array<PreprocessHandler>;
+   maxBytes?: number;
+   binaryMode?: 'skip' | 'pass' | 'buffer';
+   timeoutMs?: number;
+   modules?: string[];  // module paths to load handlers from
+   module?: string;     // single module path to load handlers from
+};
+
+export type FileStats = {
+   /** Absolute path on disk */
+   abs: string;
+   /** Path relative to root */
+   rel: string;
+   /** Path that would go into the zip (pre-rewrite) */
+   zipPath: string;
+   /** Node path bits */
+   dir: string;
+   base: string;     // filename with ext
+   name: string;     // filename without ext
+   ext: string;      // like '.js'
+   size: number;     // bytes
+   mtimeMs: number;  // modified time
+   isText: boolean;  // best-effort
+};
+
+export type ProcessContext = {
+   /** Config-effective root */
+   root: string;
+   /** Environment & flags */
+   env: Record<string, string | undefined>;
+   /** Build id/ts, CLI info, etc */
+   buildId: string;
+   /** Helper: text/binary detection, glob util, etc. */
+   utils: {
+      globMatch: (pattern: string, input: string) => boolean;
+      isText: (buf: Buffer, filename: string) => boolean;
+   };
+};
+
+export type ProcessReturn =
+   | Buffer
+   | string
+   | null
+   | undefined
+   | { content: Buffer | string; path?: string };
+
+export type PreprocessHandler =
+   (args: { stats: FileStats; content: Buffer; ctx: ProcessContext }) =>
+      Promise<ProcessReturn> | ProcessReturn;
+
+   export type ProcessedEntry =
+  | { sourcePath: string; zipPath: string }          // copy from disk
+  | { content: Buffer; zipPath: string };      
+
+
+  export type GroupConfig = {
+  /** Where files in this group appear inside the zip (e.g. "src/", "web/") */
+  target: string;
+  /** Globs that select files for this group (relative to root) */
+  include: string[];
+  /** Optional excludes (relative to root) */
+  exclude?: string[];
+  /** Optional priority: higher number wins when multiple groups match (default 0) */
+  priority?: number;
+
+  /** Optional explicit  whitelist (in addition to include globs) */
+  files?: string[]; // explicit whitelist (in addition to include globs)
+};

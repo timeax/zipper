@@ -9,27 +9,33 @@
          "description": "Output zip path"
       },
       "root": {
-         "type": "string"
+         "type": "string",
+         "description": "Project root used to resolve relative paths"
       },
       "include": {
          "type": "array",
+         "description": "Glob patterns to include (relative to root)",
          "items": {
             "type": "string"
          }
       },
       "exclude": {
          "type": "array",
+         "description": "Glob patterns to exclude (relative to root)",
          "items": {
             "type": "string"
          }
       },
       "dot": {
-         "type": "boolean"
+         "type": "boolean",
+         "description": "Whether to match dotfiles by default (scanner option)"
       },
       "followSymlinks": {
-         "type": "boolean"
+         "type": "boolean",
+         "description": "Whether to follow symlinks during scanning"
       },
       "order": {
+         "description": "Rule precedence. Use [\"include\",\"exclude\"] or [\"exclude\",\"include\"]",
          "type": "array",
          "prefixItems": [
             {
@@ -51,36 +57,180 @@
       },
       "presets": {
          "type": "array",
+         "description": "Preset names to merge (in-order)",
          "items": {
             "type": "string"
          }
       },
       "respectGitignore": {
-         "type": "boolean"
+         "type": "boolean",
+         "description": "Also treat .gitignore rules as excludes"
       },
       "ignoreFiles": {
          "type": "array",
+         "description": "Additional ignore file paths to read (each line a pattern)",
          "items": {
             "type": "string"
          }
       },
       "fromList": {
-         "type": "string"
+         "type": "string",
+         "description": "A file containing literal paths to include (one per line)"
       },
       "deterministic": {
-         "type": "boolean"
+         "type": "boolean",
+         "description": "Force deterministic packing (stable ordering, timestamps, etc.)"
       },
       "manifest": {
          "type": "boolean",
-         "description": "Emit per-file MANIFEST.json and zip .sha256"
+         "description": "Emit per-file MANIFEST.json inside the zip and a .sha256 alongside it"
       },
       "manifestPath": {
          "type": "string",
-         "description": "Where to write external manifest (defaults next to zip)"
+         "description": "Where to write the external manifest (defaults next to the zip)"
+      },
+      /* -------------------------- NEW: groups -------------------------- */
+      "groups": {
+         "type": "object",
+         "description": "Logical folder mapping for the archive (name → group config)",
+         "additionalProperties": {
+            "$ref": "#/$defs/GroupConfig"
+         }
+      },
+      /* ----------------------- NEW: preprocess ------------------------- */
+      "preprocess": {
+         "type": "object",
+         "description": "Preprocessor selection and runtime limits (handlers live in JS/TS modules)",
+         "properties": {
+            "includes": {
+               "type": "array",
+               "description": "Globs that must match for a file to be preprocessed",
+               "items": {
+                  "type": "string"
+               }
+            },
+            "excludes": {
+               "type": "array",
+               "description": "Globs that exclude a file from preprocessing",
+               "items": {
+                  "type": "string"
+               }
+            },
+            "files": {
+               "type": "array",
+               "description": "Explicit file paths (relative to root) to preprocess even if not matched by includes",
+               "items": {
+                  "type": "string"
+               }
+            },
+            "module": {
+               "type": "string",
+               "description": "Path to a single JS/TS module that exports a default or named `handlers`"
+            },
+            "modules": {
+               "type": "array",
+               "description": "Paths to JS/TS modules that export default or named `handlers`",
+               "items": {
+                  "type": "string"
+               }
+            },
+            "maxBytes": {
+               "type": "integer",
+               "minimum": 0,
+               "description": "Skip preprocessing for files larger than this (still included unmodified)"
+            },
+            "binaryMode": {
+               "type": "string",
+               "enum": [
+                  "skip",
+                  "pass",
+                  "buffer"
+               ],
+               "description": "How to treat binary files during preprocessing"
+            },
+            "timeoutMs": {
+               "type": "integer",
+               "minimum": 0,
+               "description": "Per-file preprocess timeout"
+            }
+         },
+         "additionalProperties": false,
+         "allOf": [
+            {
+               "if": {
+                  "required": [
+                     "module"
+                  ]
+               },
+               "then": {
+                  "properties": {
+                     "module": {
+                        "type": "string"
+                     }
+                  }
+               }
+            },
+            {
+               "if": {
+                  "required": [
+                     "modules"
+                  ]
+               },
+               "then": {
+                  "properties": {
+                     "modules": {
+                        "type": "array"
+                     }
+                  }
+               }
+            }
+         ]
       }
    },
    "required": [
       "out"
    ],
-   "additionalProperties": false
+   "additionalProperties": false,
+   "$defs": {
+      "GroupConfig": {
+         "type": "object",
+         "properties": {
+            "target": {
+               "type": "string",
+               "description": "Where the group's files will appear inside the zip (e.g., 'src/', 'web/')"
+            },
+            "include": {
+               "type": "array",
+               "description": "Globs that select files for this group",
+               "items": {
+                  "type": "string"
+               },
+               "minItems": 1
+            },
+            "exclude": {
+               "type": "array",
+               "description": "Globs to exclude from this group",
+               "items": {
+                  "type": "string"
+               }
+            },
+            "priority": {
+               "type": "number",
+               "description": "Higher number wins when multiple groups match (default 0)"
+            },
+            "files": {
+               "type": "array",
+               "description": "Explicit file paths (relative to root) to include in this group",
+               "items": {
+                  "type": "string"
+               }
+            }
+         },
+         "required": [
+            "target",
+            "include"
+         ],
+         "additionalProperties": false
+      }
+   }
 }

@@ -3,9 +3,11 @@ import fs from "node:fs";
 import path from "node:path";
 import YAML from "yaml";
 import Ajv from "ajv";
-import type { ZipConfig } from "./types.js";
+import type { PreprocessHandler, ZipConfig } from "./types.js";
 import { resolvePresets } from "./presets.js";
 import { getBuiltinStubDir } from "./utils.js";
+import pc from "picocolors";
+import { pathToFileURL } from "node:url";
 
 const MODULE_NAME = "zipper";
 const SCHEMA_PATH = new URL("../schema/zipconfig.schema.json", import.meta.url);
@@ -135,4 +137,78 @@ export function readIgnoreFiles(root: string, files: string[] | undefined): stri
       }
    }
    return out;
+}
+
+
+
+export async function loadPreprocessHandlers(
+  cfg: ZipConfig,
+  root: string,
+  extraModuleFromCli?: string | string[]
+): Promise<PreprocessHandler[]> {
+  const modulesFromCfg = Array.isArray(cfg.preprocess?.modules)
+    ? cfg.preprocess!.modules
+    : (cfg.preprocess?.module ? [cfg.preprocess!.module] : []);
+
+  const modulesFromCli = Array.isArray(extraModuleFromCli)
+    ? extraModuleFromCli
+    : (extraModuleFromCli ? [extraModuleFromCli] : []);
+
+  const modules = [...modulesFromCfg, ...modulesFromCli];
+  if (!modules.length) return [];
+
+  const out: PreprocessHandler[] = [];
+  for (const modPath of modules) {
+    const abs = path.isAbsolute(modPath)
+      ? modPath
+      : path.resolve(root, String(modPath));
+
+    if (!fs.existsSync(abs)) {
+      console.warn(pc.yellow(`preprocess: module not found: ${modPath}`));
+      continue;
+    }
+
+    const handlers = await importHandlers(abs);
+    if (!handlers.length) {
+      console.warn(pc.yellow(`preprocess: no handlers exported by ${modPath}`));
+      continue;
+    }
+
+    out.push(...handlers);
+  }
+
+  return out;
+}
+
+async function importHandlers(absFile: string): Promise<PreprocessHandler[]> {
+  const lower = absFile.toLowerCase();
+  let mod: any;
+
+  if (lower.endsWith('.ts')) {
+    // Compile TS to ESM in-memory and import
+    let esbuild: typeof import('esbuild');
+    try { esbuild = await import('esbuild'); }
+    catch {
+      throw new Error(`To use TS preprocess module (${absFile}), install "esbuild".`);
+    }
+    const src = await fs.promises.readFile(absFile, 'utf8');
+    const out = await esbuild.transform(src, {
+      loader: 'ts',
+      format: 'esm',
+      sourcemap: 'inline',
+      sourcefile: absFile,
+      target: 'es2020',
+    });
+    const dataUrl = 'data:text/javascript;base64,' + Buffer.from(out.code).toString('base64');
+    mod = await import(dataUrl);
+  } else if (lower.endsWith('.mjs') || lower.endsWith('.js')) {
+    mod = await import(pathToFileURL(absFile).href);
+  } else {
+    throw new Error(`Unsupported preprocess module extension: ${absFile}`);
+  }
+
+  const cand = mod?.default ?? mod?.handlers ?? [];
+  if (Array.isArray(cand)) return cand;
+  if (typeof cand === 'function') return [cand];
+  return [];
 }

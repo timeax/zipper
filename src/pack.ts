@@ -6,7 +6,8 @@ import ignore from "ignore";
 import pc from "picocolors";
 import crypto from "node:crypto";
 import cliProgress from "cli-progress";
-import type { ZipConfig } from "./types.js";
+import type { ProcessedEntry, ZipConfig } from "./types.js";
+
 
 function stableSort(arr: string[]) { return [...arr].sort((a, b) => a.localeCompare(b)); }
 
@@ -53,15 +54,29 @@ async function computeManifest(root: string, files: string[]) {
    return { generatedAt: new Date().toISOString(), count: files.length, entries };
 }
 
-export async function writeZip(cfg: ZipConfig, files: string[]) {
+
+/**
+ * Backward-compatible writer:
+ * - legacy: files: string[] (RELATIVE to cfg.root)
+ * - new:    files: ProcessedEntry[] (each has zipPath + sourcePath OR content)
+ */
+export async function writeZip(cfg: ZipConfig, files: string[] | ProcessedEntry[]) {
    const root = path.resolve(process.cwd(), cfg.root ?? ".");
    const outPath = path.resolve(process.cwd(), cfg.out);
    fs.mkdirSync(path.dirname(outPath), { recursive: true });
 
+   // Normalize input to a single entries list
+   const entries: ProcessedEntry[] = Array.isArray(files) && typeof (files as any)[0] === "string"
+      ? (files as string[]).map(rel => ({
+         sourcePath: path.join(root, rel),
+         zipPath: rel.replaceAll("\\", "/"),
+      }))
+      : (files as ProcessedEntry[]);
+
    // Optional manifest
    let manifest: any | undefined;
    if (cfg.manifest !== false) {
-      manifest = await computeManifest(root, files);
+      manifest = await computeManifestFromEntries(entries);
    }
 
    const output = fs.createWriteStream(outPath);
@@ -69,7 +84,7 @@ export async function writeZip(cfg: ZipConfig, files: string[]) {
 
    // Progress bar
    const bar = new cliProgress.SingleBar({ hideCursor: true }, cliProgress.Presets.shades_classic);
-   let total = files.length;
+   let total = entries.length;
    let processed = 0;
 
    archive.on("progress", (p) => {
@@ -90,9 +105,14 @@ export async function writeZip(cfg: ZipConfig, files: string[]) {
       archive.append(JSON.stringify(manifest, null, 2), { name: "MANIFEST.json" });
    }
 
-   for (const f of files) {
-      const full = path.join(root, f);
-      archive.file(full, { name: f, stats: fs.statSync(full) });
+   // Add files
+   for (const e of entries) {
+      if ("content" in e) {
+         archive.append(e.content, { name: e.zipPath });
+      } else {
+         // Ensure we pass absolute disk path, but the name inside zip should be zipPath
+         archive.file(e.sourcePath, { name: e.zipPath, stats: fs.statSync(e.sourcePath) });
+      }
    }
 
    await archive.finalize();
@@ -113,3 +133,45 @@ export async function writeZip(cfg: ZipConfig, files: string[]) {
 
    return outPath;
 }
+
+/** Build a manifest that works for both disk-backed and in-memory entries. */
+async function computeManifestFromEntries(entries: ProcessedEntry[]) {
+   // Keep stable order (zipPath ascending)
+   const sorted = [...entries].sort((a, b) => a.zipPath.localeCompare(b.zipPath));
+
+   const files = [];
+   for (const e of sorted) {
+      let size: number;
+      let sha256: string;
+
+      if ("content" in e) {
+         size = e.content.length;
+         sha256 = hashBuffer(e.content);
+      } else {
+         const fsp = fs.promises;
+         const data = await fsp.readFile(e.sourcePath);
+         size = data.length;
+         sha256 = hashBuffer(data);
+      }
+
+      files.push({
+         path: e.zipPath,
+         size,
+         sha256,
+      });
+   }
+
+   return {
+      createdAt: new Date().toISOString(),
+      files,
+      totalFiles: files.length,
+      totalBytes: files.reduce((acc, f) => acc + f.size, 0),
+      algorithm: "sha256",
+      version: 1,
+   };
+}
+
+function hashBuffer(buf: Buffer) {
+   return crypto.createHash("sha256").update(buf).digest("hex");
+}
+
