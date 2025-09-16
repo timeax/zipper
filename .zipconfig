@@ -1,0 +1,71 @@
+# Zipper config for a Node/TypeScript package
+# Save as .zipconfig (or keep as a stub for scaffolding)
+
+$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/e3e2f899ad174a037d83ae1f84ec674da4f76719/zipconfig.schema.json
+
+# Where to write the zip (ENV vars are expanded if present)
+out: out/package.zip
+# out: dist/package-${CI_COMMIT_SHA}.zip
+
+# Project root to scan
+root: .
+
+# Prefer shipping built output + essentials
+# (patterns that don't exist are simply ignored)
+include:
+  - dist/**          # built JS
+  - bin/**           # CLI shims
+  - package.json
+  - README*
+  - CHANGELOG*
+  - LICENSE*
+  - src
+
+# Exclude dev-only or noisy stuff (preset adds more)
+exclude:
+  - coverage/**
+  - .vscode/**
+  - .idea/**
+  - .github/**
+  - examples/**
+  - demo/**
+  - test/**
+  - tests/**
+  - "**/*.log"
+
+# Git + custom ignore support
+respectGitignore: true
+ignoreFiles:
+  - .zipignore
+
+# Apply include first, then exclude (later wins)
+order: [include, exclude]
+
+# Deterministic archive order (stable sorting)
+deterministic: true
+
+# Embed MANIFEST.json + write external manifest and zip checksum
+manifest: true
+
+# Symlink & dotfile behaviour
+followSymlinks: false
+dot: true
+
+# Use the built-in preset as a sensible base:
+# - include: dist/**, package.json, README*, LICENSE*
+# - exclude: node_modules/**, .git/**, **/*.map
+presets: [node-module]
+
+groups:
+  root: 
+    target: ""
+    priority: 100
+    files:
+      - "package.json"
+      - "tsconfig.json"
+      - 'test.html'
+      - 'src/cli.ts'
+
+preprocess:
+  modules:
+    - ./zip.preprocess.ts

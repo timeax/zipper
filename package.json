@@ -24,7 +24,8 @@
     "dev": "tsx src/cli.ts",
     "test:dry": "node dist/cli.js pack --respect-gitignore --dry-run",
     "prepublishOnly": "npm run build && npm version patch --no-git-tag-version",
-    "install:global": "npm uninstall -g @timeax/zipper && npm install -g @timeax/zipper"
+    "install:global": "npm uninstall -g @timeax/zipper && npm install -g @timeax/zipper",
+    "test": "node dist/cli.js pack"
   },
   "dependencies": {
     "ajv": "^8.17.1",

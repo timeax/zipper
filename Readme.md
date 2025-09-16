@@ -284,6 +284,124 @@ zipper pack --group backend --group docs --list
 
 ---
 
+# 📂 Groups, Includes, and Excludes
+
+This section explains exactly how **groups** interact with base `include`, `exclude`, and `files` rules in Zipper.
+
+---
+
+## 1. Selection (what files enter the pipeline)
+
+* Start with files matching base **`include`** (or `**/*` if none).
+* Remove anything matching base **`exclude`** and `.gitignore` (if enabled).
+* Apply **`order`**:
+
+  * `include,exclude` (default): excludes win last.
+  * `exclude,include`: includes “punch through” at the end.
+* **Special case**: `groups.*.files` are always added, even if not in base `include`.
+
+📌 At this stage, `groups.*.include` and `groups.*.exclude` are **ignored**. They never filter what exists — they only matter later for mapping.
+
+---
+
+## 2. Group claim (who owns a file)
+
+* For each file from selection:
+
+  * A group claims it if:
+
+    * It appears in **`groups.<name>.files`** (exact path), or
+    * It matches the group’s `include` globs and not the group’s `exclude` globs.
+* Conflicts:
+
+  * Higher **`priority`** wins.
+  * Equal priority → later-defined group wins.
+* If no group claims it → file stays ungrouped.
+
+📌 `groups.*.exclude` only prevents that group from claiming the file. It does not remove the file from the archive.
+
+---
+
+## 3. Mapping (how paths are rewritten)
+
+* **Via `files`:** placed as `target + basename(file)` (parents dropped).
+* **Via `include` globs:** placed as `target + original/relative/path`.
+* **Ungrouped files:** keep their original relative path.
+* `target` rules:
+
+  * `""` → archive root.
+  * `"public/"` → inside a `public` folder in the zip.
+
+---
+
+## 4. Preprocess (optional, after grouping)
+
+* Runs per file (source path + zip path + buffer).
+* Handler may:
+
+  * return new content → replace bytes,
+  * return new zipPath → move it,
+  * return `null` → drop it,
+  * return nothing → pass through unchanged.
+* Strict mode (`--strict-preprocess`) fails on error; otherwise errors are logged.
+
+---
+
+## 5. Collisions (same zipPath twice)
+
+If two files map to the same zipPath:
+
+* Default: **last one wins**.
+* Recommended: log a warning (source A → replaced by source B).
+* Future policies can be: fail-fast, or auto-rename with suffix/hash.
+
+---
+
+## ✅ Guarantees
+
+* Base `include`/`exclude` still apply even when groups are defined.
+* `groups` never erase base rules; they only:
+
+  * add exact `files`,
+  * decide who *claims* an existing file,
+  * and rewrite its archive path.
+* Counts:
+
+  * `Scanner count (dry-run)` = `Post-group count` (unless preprocess drops some).
+
+---
+
+## Example
+
+```yaml
+include:
+  - app/**
+  - resources/**
+exclude:
+  - node_modules/**
+  - vendor/**
+order: [exclude, include]
+
+groups:
+  server:
+    target: "server/"
+    include: ["app/**"]
+  web:
+    target: "public/"
+    files:
+      - resources/views/index.blade.php
+```
+
+Result:
+
+* `app/Models/User.php` → `server/app/Models/User.php`
+* `resources/views/index.blade.php` → `public/index.blade.php`
+* `resources/css/app.css` → stays as `resources/css/app.css` (no group claim)
+* `vendor/…` → excluded.
+
+
+---
+
 ## 🧪 Preprocess diagnostics
 
 ```bash

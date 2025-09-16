@@ -89,7 +89,6 @@
          "type": "string",
          "description": "Where to write the external manifest (defaults next to the zip)"
       },
-      /* -------------------------- NEW: groups -------------------------- */
       "groups": {
          "type": "object",
          "description": "Logical folder mapping for the archive (name → group config)",
@@ -97,7 +96,6 @@
             "$ref": "#/$defs/GroupConfig"
          }
       },
-      /* ----------------------- NEW: preprocess ------------------------- */
       "preprocess": {
          "type": "object",
          "description": "Preprocessor selection and runtime limits (handlers live in JS/TS modules)",

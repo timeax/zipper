@@ -60,7 +60,7 @@ export async function runPreprocessPipeline(
       let buf = await fs.readFile(abs);
 
       // Binary guard
-      const isText = detectText(buf, stats.base);
+      const isText = detectText(stats.base, buf);
       stats.isText = isText;
       const binaryMode = pre.binaryMode ?? "skip";
       if (!isText) {

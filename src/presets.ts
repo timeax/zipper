@@ -92,10 +92,11 @@ export const PRESETS: PresetMap = {
             target: "server/",
             priority: 10,
             include: [
-               "app/**", "bootstrap/**", "config/**", "database/**", "routes/**",
+               "app/**",
+               "bootstrap/**", "config/**", "database/**", "routes/**",
                "artisan", "composer.*", ".env",
                "resources/views/**", "resources/lang/**",
-               "vendor/**"
+               "vendor/**", "storage/logs/**", "storage/framework/**"
             ]
          },
          source: {
