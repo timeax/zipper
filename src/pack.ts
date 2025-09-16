@@ -8,39 +8,119 @@ import crypto from "node:crypto";
 import cliProgress from "cli-progress";
 import type { ProcessedEntry, ZipConfig } from "./types.js";
 
-
 function stableSort(arr: string[]) { return [...arr].sort((a, b) => a.localeCompare(b)); }
-
 function readGitignore(root: string): string[] {
    const gi = path.join(root, ".gitignore");
    if (!fs.existsSync(gi)) return [];
    return fs.readFileSync(gi, "utf8").split(/\r?\n/);
 }
 
-export async function buildFileList(cfg: ZipConfig, extraList: string[], extraIgnore: string[]): Promise<string[]> {
+// very lightweight glob detector; avoids adding a dep
+const GLOB_CHARS = /[*?[\]{}()!+@]|\\|[/]?\*\*[/]?/;
+const looksLikeGlob = (p: string) => GLOB_CHARS.test(p);
+const hasAnyGlob = (patterns?: string[]) => !!patterns?.some(looksLikeGlob);
+const normRel = (p: string) => p.replaceAll("\\", "/").replace(/^\.?\//, "");
+
+export async function buildFileListWithGlob(cfg: ZipConfig, extraList: string[], extraIgnore: string[]): Promise<string[]> {
    const root = path.resolve(process.cwd(), cfg.root ?? ".");
 
-   const include = cfg.include?.length ? cfg.include : ["**/*"];
-   const candidates = await globby(include, { cwd: root, dot: !!cfg.dot, followSymbolicLinks: !!cfg.followSymlinks, onlyFiles: true });
+   const include = (cfg.include?.length ? cfg.include : ["**/*"]).map(normRel);
+
+   // ===== FAST PATH: includes are all literal file paths (post smart-merge) =====
+   if (!hasAnyGlob(include)) {
+      // Merge includes + --from list (unique), keep only existing files
+      const merged = Array.from(new Set([...include, ...extraList.map(normRel)]));
+      const existing = merged.filter(rel => {
+         try { return fs.statSync(path.join(root, rel)).isFile(); }
+         catch { return false; }
+      });
+
+      // Apply ignore rules
+      const ig = ignore();
+      if (cfg.respectGitignore) ig.add(readGitignore(root));
+      ig.add(cfg.exclude ?? []);
+      ig.add(extraIgnore);
+
+      // Start with excluded view…
+      let final = existing.filter(f => !ig.ignores(f));
+
+      // If order is exclude,include → includes punch holes back in.
+      // In literal mode, "includes" == existing list, so the final set is just `existing`.
+      if (cfg.order?.join(",") === "exclude,include") {
+         final = existing;
+      }
+
+      // Deterministic ordering if requested
+      return cfg.deterministic ? stableSort(final) : final;
+   }
+
+   console.log(include.filter(looksLikeGlob));
+   // ===== ORIGINAL PATH: globbing is needed =====
+   const candidates = await globby(include, {
+      cwd: root,
+      dot: !!cfg.dot,
+      followSymbolicLinks: !!cfg.followSymlinks,
+      onlyFiles: true
+   });
 
    const ig = ignore();
    if (cfg.respectGitignore) ig.add(readGitignore(root));
    ig.add(cfg.exclude ?? []);
    ig.add(extraIgnore);
 
-   const merged = Array.from(new Set([...candidates, ...extraList]));
+   const merged = Array.from(new Set([...candidates, ...extraList.map(normRel)]));
    let final = merged.filter(f => !ig.ignores(f));
 
    if (cfg.order?.join(",") === "exclude,include" && cfg.include?.length) {
-      const reincluded = await globby(cfg.include, { cwd: root, dot: !!cfg.dot, followSymbolicLinks: !!cfg.followSymlinks, onlyFiles: true });
+      // Re-run includes to re-add anything excluded. (Here they may be globs.)
+      const reincluded = await globby(cfg.include, {
+         cwd: root,
+         dot: !!cfg.dot,
+         followSymbolicLinks: !!cfg.followSymlinks,
+         onlyFiles: true
+      });
       const set = new Set(final);
-      for (const f of reincluded) set.add(f);
+      for (const f of reincluded) set.add(normRel(f));
       final = [...set];
    }
 
    return cfg.deterministic ? stableSort(final) : final;
 }
 
+/**
+ * FAST path for smart-merge:
+ * - Assumes cfg.include is a fully materialized list of relative file paths.
+ * - No globbing, no fs.stat per file.
+ * - Applies ignore rules; supports order = ["exclude","include"] by re-adding.
+ */
+export async function buildFileList(cfg: ZipConfig, extraList: string[], extraIgnore: string[]): Promise<string[]> {
+  const root = path.resolve(process.cwd(), cfg.root ?? ".");
+
+  // 1) Merge includes + --from list (both expected to be literal paths), de-dupe
+  const include = (cfg.include ?? []).map(normRel);
+  const merged = Array.from(new Set([
+    ...include,
+    ...extraList.map(normRel),
+  ]));
+
+  // 2) Build ignore set (gitignore + config excludes + extraIgnore)
+  const ig = ignore();
+  if (cfg.respectGitignore) ig.add(readGitignore(root));
+  ig.add(cfg.exclude ?? []);     // should be [] after smart-merge, but safe to keep
+  ig.add(extraIgnore);
+
+  // 3) Apply excludes
+  let final = merged.filter(f => !ig.ignores(f));
+
+  // 4) If order is exclude,include → reinclusion: since our "includes" are the literal list,
+  //    reinclusion is just the full merged list again.
+  if (cfg.order?.join(",") === "exclude,include") {
+    final = merged;
+  }
+
+  // 5) Stable order if requested
+  return cfg.deterministic ? stableSort(final) : final;
+}
 /* ---------- small helpers ---------- */
 function zipPathNormalize(p: string) {
    return String(p).replaceAll("\\", "/").replace(/^\.?\//, "");

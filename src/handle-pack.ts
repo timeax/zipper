@@ -2,7 +2,7 @@ import path from "node:path";
 import pc from "picocolors";
 import { loadConfig, loadListFile, readIgnoreFiles, loadPreprocessHandlers } from "./config";
 import { buildFileList, writeZip } from "./pack";
-import { buildGroupZipMapper, mergeGroupFilesIntoInclude } from "./groups";
+import { buildGroupZipMapper } from "./groups";
 import { Order, ZipConfig, ProcessedEntry } from "./types";
 
 async function handlePack(args: any) {
@@ -39,7 +39,6 @@ async function handlePack(args: any) {
    const disablePre = !!args["no-preprocess"];
    const strictPre = !!args["strict-preprocess"];
 
-   mergeGroupFilesIntoInclude(cfg); // NEW: ensure group files are included
    // Build base file list (relative to root)
    const root = path.resolve(process.cwd(), cfg.root ?? ".");
    const listExtra = loadListFile(root, args.from as string | undefined);

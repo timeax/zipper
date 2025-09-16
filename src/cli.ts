@@ -902,12 +902,31 @@ Searched:
                // restore include
                cfg.include = includeBackup;
 
-               // Precompile include/exclude for counts
+               // Precompile include/exclude for counts + merge explicit files
+               const globFilters = (args.glob as string[] | undefined)?.map(p => picomatch(p, { dot: true })) ?? null;
+               const passesUserGlob = (rel: string) => !globFilters || globFilters.some(m => m(rel));
+
                const compiled = names.map(n => {
                   const g = groups[n];
+
+                  // group include/exclude for CLAIM (not selection)
                   const inc = (g.include ?? []).map(p => picomatch(p, { dot: true }));
                   const exc = (g.exclude ?? []).map(p => picomatch(p, { dot: true }));
-                  const matches = relFiles.filter(r => inc.some(m => m(r)) && !exc.some(m => m(r)));
+
+                  // matches from scanner via group globs
+                  const globMatches = relFiles.filter(r => inc.some(m => m(r)) && !exc.some(m => m(r)));
+
+                  // explicit files (exact paths), normalized; include even if not in relFiles
+                  const explicitSet = new Set<string>((g.files ?? []).map(s =>
+                     s.replaceAll("\\", "/").replace(/^\.?\//, "")
+                  ));
+                  const explicit = Array.from(explicitSet)
+                     .filter(passesUserGlob);
+
+                  // union + stable sort
+                  const matches = Array.from(new Set<string>([...globMatches, ...explicit]))
+                     .sort((a, b) => a.localeCompare(b));
+
                   return { name: n, target: g.target, priority: g.priority ?? 0, matches };
                });
 

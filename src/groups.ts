@@ -78,14 +78,6 @@ function normRel(p: string): string {
    return p.replaceAll("\\", "/").replace(/^\.?\//, "");
 }
 
-// right after you’ve resolved cfg (presets applied), before buildFileList:
-export function mergeGroupFilesIntoInclude(cfg: ZipConfig) {
-   const files = Object.values(cfg.groups ?? {})
-      .flatMap(g => g.files ?? [])
-      .map(s => s.replaceAll("\\", "/").replace(/^\.?\//, ""));
-   if (!files.length) return;
-   cfg.include = [...new Set([...(cfg.include ?? []), ...files])];
-}
 export function assertGroupConfig(name: string, g: GroupConfig): void {
    if ((!g.include || g.include.length === 0) && (!g.files || g.files.length === 0)) {
       throw new Error(`Group "${name}" must specify at least one of: include[] or files[].`);

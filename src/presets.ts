@@ -101,7 +101,7 @@ export const PRESETS: PresetMap = {
          },
          source: {
             target: "source/",
-            priority: 5,
+            priority: 15,
             include: [
                "resources/js/**", "resources/ts/**", "resources/css/**", "resources/sass/**",
                "vite.config.*", "postcss.config.*", "tailwind.config.*",
@@ -128,11 +128,6 @@ export const PRESETS: PresetMap = {
       }
    }
 };
-// types assumed:
-// type GroupConfig = { target: string; include: string[]; exclude?: string[]; priority?: number };
-// type Preset = { include?: string[]; exclude?: string[]; ignoreFiles?: string[]; groups?: Record<string, GroupConfig>; preprocess?: { modules?: string[]; module?: string; includes?: string[]; excludes?: string[]; files?: string[]; maxBytes?: number; timeoutMs?: number; binaryMode?: "skip"|"pass"|"buffer"; } };
-// type ZipConfig = { include?: string[]; exclude?: string[]; ignoreFiles?: string[]; groups?: Record<string, GroupConfig>; preprocess?: Preset["preprocess"]; /* ...other fields... */ };
-// declare const PRESETS: Record<string, Preset>;
 
 export function resolvePresets(names: string[] | undefined): Partial<ZipConfig> {
    if (!names?.length) return {};

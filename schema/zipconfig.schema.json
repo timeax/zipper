@@ -4,6 +4,10 @@
    "title": "Zipper Config",
    "type": "object",
    "properties": {
+      "$schema": {
+         "type": "string",
+         "description": "Editor hint only; ignored by Zipper."
+      },
       "out": {
          "type": "string",
          "description": "Output zip path"
@@ -192,14 +196,15 @@
    "$defs": {
       "GroupConfig": {
          "type": "object",
+         "description": "Defines how a group maps files into the zip",
          "properties": {
             "target": {
                "type": "string",
-               "description": "Where the group's files will appear inside the zip (e.g., 'src/', 'web/')"
+               "description": "Where the group's files appear inside the zip (e.g., 'src/', 'web/')"
             },
             "include": {
                "type": "array",
-               "description": "Globs that select files for this group",
+               "description": "Globs that select files for this group (relative to root)",
                "items": {
                   "type": "string"
                },
@@ -207,7 +212,7 @@
             },
             "exclude": {
                "type": "array",
-               "description": "Globs to exclude from this group",
+               "description": "Globs to exclude from this group (relative to root)",
                "items": {
                   "type": "string"
                }
@@ -225,8 +230,19 @@
             }
          },
          "required": [
-            "target",
-            "include"
+            "target"
+         ],
+         "anyOf": [
+            {
+               "required": [
+                  "include"
+               ]
+            },
+            {
+               "required": [
+                  "files"
+               ]
+            }
          ],
          "additionalProperties": false
       }

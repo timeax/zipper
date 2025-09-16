@@ -13,13 +13,7 @@ root: .
 # Prefer shipping built output + essentials
 # (patterns that don't exist are simply ignored)
 include:
-  - dist/**          # built JS
-  - bin/**           # CLI shims
-  - package.json
-  - README*
-  - CHANGELOG*
-  - LICENSE*
-  - src
+  - "*/**"
 
 # Exclude dev-only or noisy stuff (preset adds more)
 exclude:
@@ -54,7 +48,7 @@ dot: true
 # Use the built-in preset as a sensible base:
 # - include: dist/**, package.json, README*, LICENSE*
 # - exclude: node_modules/**, .git/**, **/*.map
-presets: [node-module]
+# presets: [node-module]
 
 groups:
   root: 
@@ -66,6 +60,5 @@ groups:
       - 'test.html'
       - 'src/cli.ts'
 
-preprocess:
-  modules:
-    - ./zip.preprocess.ts
+#preprocess:
+ #ocess.ts
