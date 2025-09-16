@@ -101,21 +101,20 @@ export type PreprocessHandler =
    (args: { stats: FileStats; content: Buffer; ctx: ProcessContext }) =>
       Promise<ProcessReturn> | ProcessReturn;
 
-   export type ProcessedEntry =
-  | { sourcePath: string; zipPath: string }          // copy from disk
-  | { content: Buffer; zipPath: string };      
+export type ProcessedEntry =
+   | { sourcePath: string; zipPath: string }          // copy from disk
+   | { content: Buffer; zipPath: string };
 
 
-  export type GroupConfig = {
-  /** Where files in this group appear inside the zip (e.g. "src/", "web/") */
-  target: string;
-  /** Globs that select files for this group (relative to root) */
-  include: string[];
-  /** Optional excludes (relative to root) */
-  exclude?: string[];
-  /** Optional priority: higher number wins when multiple groups match (default 0) */
-  priority?: number;
-
-  /** Optional explicit  whitelist (in addition to include globs) */
-  files?: string[]; // explicit whitelist (in addition to include globs)
-};
+export type GroupConfig =
+   {
+      /** Where files in this group appear inside the zip (e.g. "src/", "web/") */
+      target: string;
+      /** Optional excludes (relative to root) */
+      exclude?: string[];
+      /** Higher number wins when multiple groups match (default 0) */
+      priority?: number;
+   } & (
+      | { include: string[]; files?: string[] } // include required (files optional)
+      | { include?: string[]; files: string[] } // files required (include optional)
+   );

@@ -7,6 +7,7 @@ export function buildGroupZipMapper(cfg: ZipConfig) {
    const groups = cfg.groups ?? {};
 
    const compiled = Object.entries(groups).map(([name, g]) => {
+      assertGroupConfig(name, g);
       const target = normalizeTarget(g.target);
       const include = (g.include ?? []).map(glob => picomatch(glob, { dot: true }));
       const exclude = (g.exclude ?? []).map(glob => picomatch(glob, { dot: true }));
@@ -84,4 +85,9 @@ export function mergeGroupFilesIntoInclude(cfg: ZipConfig) {
       .map(s => s.replaceAll("\\", "/").replace(/^\.?\//, ""));
    if (!files.length) return;
    cfg.include = [...new Set([...(cfg.include ?? []), ...files])];
+}
+export function assertGroupConfig(name: string, g: GroupConfig): void {
+   if ((!g.include || g.include.length === 0) && (!g.files || g.files.length === 0)) {
+      throw new Error(`Group "${name}" must specify at least one of: include[] or files[].`);
+   }
 }

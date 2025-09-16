@@ -121,7 +121,7 @@ export const PRESETS: PresetMap = {
          root: {
             target: "",
             priority: 100,
-            include: [
+            files: [
                "public/index.php", "public/.htaccess",
             ]
          }
@@ -172,7 +172,7 @@ export function resolvePresets(names: string[] | undefined): Partial<ZipConfig> 
             } else {
                if (g.target != null) cur.target = g.target;
                if (g.priority != null) cur.priority = g.priority;
-               if (g.include?.length) cur.include.push(...g.include);
+               if (g.include?.length) cur.include?.push(...g.include);
                if (g.exclude?.length) cur.exclude = [...(cur.exclude ?? []), ...g.exclude];
                if (g.files?.length) cur.files = [...(cur.files ?? []), ...g.files]; // NEW
             }
@@ -257,3 +257,4 @@ export async function getAllPresets(extraDirs: string[] = []) {
    const user = await loadUserPresets(extraDirs);
    return { ...PRESETS, ...user } as Record<string, Partial<ZipConfig>>;
 }
+
