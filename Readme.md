@@ -516,6 +516,147 @@ Suggested script:
 
 ---
 
+# 🔄 Update Notes — CLI Additions & Behavior Changes
+
+## New: Pre/Post Hook Commands
+
+You can now run custom commands **before** and/or **after** packaging.
+
+### `.zipconfig`
+
+```yaml
+hooks:
+  pre:
+    - "npm ci"
+    - "npm run build"
+    - run: ["php", "artisan", "config:cache"]
+      timeoutMs: 120000
+  post:
+    - run: "node scripts/after-pack.js {{out}}"
+      continueOnError: true
+      env:
+        CHANNEL: "ci"
+```
+
+**Tokens available in hooks**
+
+* `{{root}}`, `{{out}}`, `{{config}}`, `{{fileCount}}`, `{{manifest}}`
+  …also exposed as env vars: `ZIPPER_ROOT`, `ZIPPER_OUT`, `ZIPPER_CONFIG`, `ZIPPER_FILE_COUNT`, `ZIPPER_MANIFEST`.
+
+**CLI controls**
+
+* `--no-hooks` — disable hooks entirely
+* `--pre "<cmd>"` — append an extra **pre** hook (repeatable)
+* `--post "<cmd>"` — append an extra **post** hook (repeatable)
+* `--hook-timeout <ms>` — default per-command timeout
+* `--hooks-dry-run` — print what would run, don’t execute
+
+> Hooks are cross-platform: strings run via the shell, arrays run as raw `[cmd, ...args]`.
+
+---
+
+## New: Smart-Merge Progress & Timing
+
+**Smart-merge** now has optional progress and timings to help diagnose slow projects.
+
+**Environment toggles**
+
+* `ZIPPER_SMARTMERGE_PROGRESS=1` — show a progress bar while resolving effective file list
+* `ZIPPER_DEBUG=1` — also enables smart-merge progress
+* `ZIPPER_TIMING=1` — end-to-end phase timings (loadConfig, buildFileList, writeZip, etc.)
+
+Example:
+
+```bash
+ZIPPER_TIMING=1 ZIPPER_SMARTMERGE_PROGRESS=1 zipper pack --dry-run
+```
+
+You’ll see logs like:
+
+```
+[smart-merge] [cfg] sources: 3 tier(s) in 2ms
+[smart-merge] [cfg] scan: 12690 candidates … in 240ms
+████████████████████████████████ 100% | 12690/12690
+[smart-merge] [cfg] decide: kept 4311 / 12690 in 190ms
+[timing] buildFileList: 15ms
+```
+
+---
+
+## Faster Packing (No Globbing on Materialized Includes)
+
+When smart-merge is enabled, `cfg.include` is now a **final explicit list** of files.
+The packer skips `globby()` entirely and just:
+
+1. de-dupes includes + `--from` list,
+2. applies ignore rules,
+3. re-adds items if `order: [exclude, include]`,
+4. sorts if `deterministic: true`.
+
+This removes large startup stalls on big repos.
+
+---
+
+## Pack Enhancements (Flags)
+
+New/clarified flags on `zipper pack`:
+
+* `--group <name>` (repeatable) — select only the named groups from `.zipconfig`
+* `--no-preprocess` — disable preprocess pipeline
+* `--strict-preprocess` — fail the build on preprocess errors
+* `--preprocess <module...>` — load extra preprocess modules (ts/js)
+* `--preprocess-timeout <ms>` — per-file preprocess timeout
+* `--preprocess-max-bytes <n>` — cap file size fed to preprocess
+* `--preprocess-binary-mode <skip|pass>` — behavior for binaries in preprocess
+
+(These layer on top of whatever is defined in `.zipconfig`.)
+
+---
+
+## Usability Tweaks
+
+* `zipper stub cat` — **name is optional**; omitting it opens an interactive picker (Local / Global / Built-in).
+* `zipper group ls` — shows each group’s target, priority, and sample mappings; supports `--glob` limiter and `--limit` for previews.
+
+---
+
+## Backwards Compatibility
+
+* No breaking changes to existing `.zipconfig` files.
+* Hooks are additive; if not specified, nothing runs.
+* The selection algorithm is unchanged in outcome; it’s just faster and more transparent.
+
+---
+
+## Security Notes (Hooks)
+
+* Treat hook commands as trusted code (they run with your user permissions).
+* Prefer checked-in scripts over inline shell when sharing configs.
+* Consider `continueOnError: true` for non-critical post steps (like notifications).
+
+---
+
+## Quick Examples
+
+Run with hooks disabled:
+
+```bash
+zipper pack --no-hooks
+```
+
+Append an extra post step (e.g., upload the artifact):
+
+```bash
+zipper pack --post "node scripts/upload.js {{out}}"
+```
+
+Diagnose performance:
+
+```bash
+ZIPPER_TIMING=1 zipper pack --dry-run
+```
+---
+
 ## 🤝 Contributing
 
 1. Fork the repo
