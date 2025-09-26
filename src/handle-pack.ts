@@ -4,10 +4,57 @@ import { loadConfig, loadListFile, readIgnoreFiles, loadPreprocessHandlers } fro
 import { buildFileList, writeZip } from "./pack";
 import { buildGroupZipMapper } from "./groups";
 import { Order, ZipConfig, ProcessedEntry } from "./types";
+import { loadHooksMeta } from "./hooks_meta";
+import { runHookPhase } from "./hook";
+import { run } from "node:test";
+
+
+async function runPreHook(args: any) {
+   // 0) Discover hooks first (fast), then run PRE
+   const hooksMeta = await loadHooksMeta(args.config as string | undefined);
+   const root0 = path.resolve(process.cwd(), hooksMeta.root ?? ".");
+   const out0 = hooksMeta.out ? path.resolve(process.cwd(), hooksMeta.out) : "";
+
+   if (!args["no-hooks"]) {
+      await runHookPhase(
+         { hooks: hooksMeta.hooks } as any,
+         "pre",
+         { root: root0, out: out0, configPath: hooksMeta.filepath },
+         {
+            dryRun: !!args["hooks-dry-run"], defaultTimeoutMs: args["hook-timeout"] ? Number(args["hook-timeout"]) : undefined,
+            extra: (args.pre as string[] | undefined)?.map(String) ?? []
+         }
+      );
+   }
+}
+
+async function runPostHook(args: any, cfg: ZipConfig, filepath: string | undefined, root: string, out: string, files: string[]) {
+   if (!args["no-hooks"]) {
+      await runHookPhase(
+         cfg,
+         "post",
+         {
+            root,
+            out: path.resolve(process.cwd(), out),
+            configPath: filepath,
+            fileCount: files.length,
+            manifestPath: cfg.manifestPath
+               ? path.resolve(process.cwd(), cfg.manifestPath)
+               : path.join(path.dirname(out), path.basename(out, ".zip") + ".manifest.json"),
+         },
+         {
+            dryRun: !!args["hooks-dry-run"],
+            defaultTimeoutMs: args["hook-timeout"] ? Number(args["hook-timeout"]) : undefined,
+            extra: (args.post as string[] | undefined)?.map(String) ?? []
+         }
+      );
+   }
+}
+
 
 async function handlePack(args: any) {
    const { cfg, filepath } = await loadConfig(args.config as string | undefined);
-
+   await runPreHook(args);
    // existing CLI → cfg overrides...
    if (args.out) cfg.out = String(args.out);
    if (args.root) cfg.root = String(args.root);
@@ -125,6 +172,8 @@ async function handlePack(args: any) {
    // --- Write the archive
    const out = await writeZip(cfg, entries);
    console.log(pc.green(`✔ wrote ${out} (${entries.length} files)`));
+   // --- Run POST hooks
+   await runPostHook(args, cfg, filepath, root, out, entries.map(e => "sourcePath" in e ? e.sourcePath : "(in-memory)"));
 }
 
 export { handlePack };

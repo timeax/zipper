@@ -2,38 +2,38 @@ import os from 'node:os';
 import path from "node:path";
 import fsSync from "node:fs";
 import { fileURLToPath } from "node:url";
-
+import YAML from "yaml";
 /** Get global stub dirs:
  * Priority: explicit --global-dir(s) > ZIPPER_STUBS env (split by path delimiter) > defaults (~/.config/zipper/stubs, ~/.zipper/stubs)
  */
 export function getGlobalStubDirs(extra: string[] = []): string[] {
-   const fromFlag = extra.filter(Boolean);
-   const envRaw = process.env.ZIPPER_STUBS || "";
-   const sep = path.delimiter; // ':' POSIX, ';' Windows
-   const fromEnv = envRaw.split(sep).map(s => s.trim()).filter(Boolean);
+  const fromFlag = extra.filter(Boolean);
+  const envRaw = process.env.ZIPPER_STUBS || "";
+  const sep = path.delimiter; // ':' POSIX, ';' Windows
+  const fromEnv = envRaw.split(sep).map(s => s.trim()).filter(Boolean);
 
-   const home = os.homedir();
-   const defaults = [
-      path.join(home, ".config", "zipper", "stubs"),
-      path.join(home, ".zipper", "stubs"),
-   ];
+  const home = os.homedir();
+  const defaults = [
+    path.join(home, ".config", "zipper", "stubs"),
+    path.join(home, ".zipper", "stubs"),
+  ];
 
-   const all = [...fromFlag, ...fromEnv, ...defaults];
-   // unique + existing dirs only
-   const seen = new Set<string>();
-   const out: string[] = [];
-   for (const d of all) {
-      const abs = path.isAbsolute(d) ? d : path.resolve(process.cwd(), d);
-      if (!seen.has(abs) && isDirSync(abs)) {
-         seen.add(abs);
-         out.push(abs);
-      }
-   }
-   return out;
+  const all = [...fromFlag, ...fromEnv, ...defaults];
+  // unique + existing dirs only
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const d of all) {
+    const abs = path.isAbsolute(d) ? d : path.resolve(process.cwd(), d);
+    if (!seen.has(abs) && isDirSync(abs)) {
+      seen.add(abs);
+      out.push(abs);
+    }
+  }
+  return out;
 }
 
 function isDirSync(p: string) {
-   try { return fsSync.statSync(p).isDirectory(); } catch { return false; }
+  try { return fsSync.statSync(p).isDirectory(); } catch { return false; }
 }
 
 
@@ -46,11 +46,11 @@ export function getBuiltinStubDir(): string {
 
 // src/util-istext.ts
 const TEXT_EXT = new Set([
-  ".txt",".md",".markdown",".html",".htm",".xml",".json",".yaml",".yml",
-  ".js",".mjs",".cjs",".ts",".tsx",".jsx",".css",".scss",".less",
-  ".py",".rb",".php",".java",".c",".cc",".cpp",".h",".hpp",".go",".rs",
-  ".sh",".bash",".zsh",".fish",".ps1",".bat",".ini",".toml",".conf",
-  ".csv",".tsv",".svg",".map",
+  ".txt", ".md", ".markdown", ".html", ".htm", ".xml", ".json", ".yaml", ".yml",
+  ".js", ".mjs", ".cjs", ".ts", ".tsx", ".jsx", ".css", ".scss", ".less",
+  ".py", ".rb", ".php", ".java", ".c", ".cc", ".cpp", ".h", ".hpp", ".go", ".rs",
+  ".sh", ".bash", ".zsh", ".fish", ".ps1", ".bat", ".ini", ".toml", ".conf",
+  ".csv", ".tsv", ".svg", ".map",
 ]);
 
 /**
@@ -99,4 +99,67 @@ export function isText(buf: Buffer, filename?: string): boolean {
 function getExt(name: string): string {
   const i = name.lastIndexOf(".");
   return i >= 0 ? name.slice(i).toLowerCase() : "";
+}
+
+/** Name used by cosmiconfig for search (".zipconfig", "package.json" → { zipper: {...} }) */
+export const MODULE_NAME = "zipper";
+
+/**
+ * If a config path has no extension and isn’t a dotfile, assume it's a stub name and append ".stub".
+ * Examples:
+ *   "laravel"        -> "laravel.stub"
+ *   "inertia.stub"   -> "inertia.stub"
+ *   ".zipconfig"     -> ".zipconfig"   (dotfile, leave as-is)
+ *   "zip.json"       -> "zip.json"     (has ext, leave as-is)
+ */
+export function appendStubIfNoExt(input: string): string {
+  const base = path.basename(input);
+  // explicit known extensions → leave alone
+  if (/\.(stub|json|ya?ml)$/i.test(base)) return input;
+  // dotfiles like ".zipconfig" → leave alone
+  if (base.startsWith(".")) return input;
+  // anything with an ext → leave alone
+  if (path.extname(base)) return input;
+  // otherwise assume stub
+  return input.endsWith(".stub") ? input : input + ".stub";
+}
+
+/**
+ * Parse a config file whose format is unknown (YAML or JSON).
+ * YAML parser handles JSON too, so prefer YAML here.
+ * Returns the parsed object (if the file was `package.json`, the caller can
+ * still do `obj.zipper ?? obj` as needed).
+ */
+export function parseUnknownConfig(content: string): any {
+  try {
+    // YAML.parse can parse JSON; this keeps comments & YAML features working.
+    return YAML.parse(content);
+  } catch {
+    // last resort
+    try { return JSON.parse(content); }
+    catch { return {}; }
+  }
+}
+
+/**
+ * Expand environment variables and ~ in simple paths/strings.
+ * Supports:
+ *   - ${VAR} and $VAR
+ *   - leading "~" → user home
+ */
+export function envExpand(input: string | undefined): string {
+  if (!input) return "";
+  let s = String(input);
+
+  // Expand ${VAR}
+  s = s.replace(/\$\{([^}]+)\}/g, (_, name) => process.env[name] ?? "");
+  // Expand $VAR (avoid $$ or $ followed by non-identifier)
+  s = s.replace(/(?<!\$)\$([A-Za-z_][A-Za-z0-9_]*)/g, (_, name) => process.env[name] ?? "");
+
+  // Leading ~ → home
+  if (s.startsWith("~")) {
+    s = path.join(os.homedir(), s.slice(1));
+  }
+
+  return s;
 }

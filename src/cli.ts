@@ -258,6 +258,11 @@ await yargs(hideBin(process.argv))
          .option("strict-preprocess", { type: "boolean", default: false, desc: "Fail on preprocess errors" })
          .option("preprocess-timeout", { type: "number", desc: "Per-file preprocess timeout (ms)" })
          .option("preprocess-max-bytes", { type: "number", desc: "Skip preprocess for files bigger than this" })
+         .option("no-hooks", { type: "boolean", default: false, desc: "Disable pre/post hooks" })
+         .option("pre", { type: "array", desc: "Append extra pre-hook commands" })
+         .option("post", { type: "array", desc: "Append extra post-hook commands" })
+         .option("hook-timeout", { type: "number", desc: "Default timeout for hooks in ms (per command)" })
+         .option("hooks-dry-run", { type: "boolean", default: false, desc: "Print hooks without executing" })
          .option("preprocess-binary-mode", { type: "string", choices: ["skip", "pass", "buffer"] as const }),
       handlePack
    )
@@ -287,6 +292,11 @@ await yargs(hideBin(process.argv))
          .option("strict-preprocess", { type: "boolean", default: false, desc: "Fail on preprocess errors" })
          .option("preprocess-timeout", { type: "number", desc: "Per-file preprocess timeout (ms)" })
          .option("preprocess-max-bytes", { type: "number", desc: "Skip preprocess for files bigger than this" })
+         .option("no-hooks", { type: "boolean", default: false, desc: "Disable pre/post hooks" })
+         .option("pre", { type: "array", desc: "Append extra pre-hook commands" })
+         .option("post", { type: "array", desc: "Append extra post-hook commands" })
+         .option("hook-timeout", { type: "number", desc: "Default timeout for hooks in ms (per command)" })
+         .option("hooks-dry-run", { type: "boolean", default: false, desc: "Print hooks without executing" })
          .option("preprocess-binary-mode", { type: "string", choices: ["skip", "pass", "buffer"] as const }),
       handlePack
    )

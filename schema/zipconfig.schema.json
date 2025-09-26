@@ -8,6 +8,24 @@
          "type": "string",
          "description": "Editor hint only; ignored by Zipper."
       },
+      "hooks": {
+         "type": "object",
+         "additionalProperties": false,
+         "properties": {
+            "pre": {
+               "type": "array",
+               "items": {
+                  "$ref": "#/definitions/HookItem"
+               }
+            },
+            "post": {
+               "type": "array",
+               "items": {
+                  "$ref": "#/definitions/HookItem"
+               }
+            }
+         }
+      },
       "out": {
          "type": "string",
          "description": "Output zip path"
@@ -245,6 +263,55 @@
             }
          ],
          "additionalProperties": false
+      },
+      "HookItem": {
+         "oneOf": [
+            {
+               "type": "string"
+            },
+            {
+               "type": "object",
+               "properties": {
+                  "run": {
+                     "oneOf": [
+                        {
+                           "type": "string"
+                        },
+                        {
+                           "type": "array",
+                           "items": {
+                              "type": "string"
+                           },
+                           "minItems": 1
+                        }
+                     ]
+                  },
+                  "shell": {
+                     "type": "boolean"
+                  },
+                  "cwd": {
+                     "type": "string"
+                  },
+                  "timeoutMs": {
+                     "type": "integer",
+                     "minimum": 0
+                  },
+                  "env": {
+                     "type": "object",
+                     "additionalProperties": {
+                        "type": "string"
+                     }
+                  },
+                  "continueOnError": {
+                     "type": "boolean"
+                  }
+               },
+               "required": [
+                  "run"
+               ],
+               "additionalProperties": false
+            }
+         ]
       }
    }
 }

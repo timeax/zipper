@@ -44,6 +44,9 @@ export interface ZipConfig {
    preprocess?: PreprocessConfig;
 
    groups?: Record<string, GroupConfig>;
+
+   hooks?: HooksConfig;
+
 }
 
 
@@ -118,3 +121,20 @@ export type GroupConfig =
       | { include: string[]; files?: string[] } // include required (files optional)
       | { include?: string[]; files: string[] } // files required (include optional)
    );
+
+// src/types.ts
+export type HookItem =
+   | string
+   | {
+      run: string | string[];           // "npm run build" OR ["node", "script.js", "--flag"]
+      shell?: boolean;                  // default true for strings, false for arrays
+      cwd?: string;                     // default: cfg.root
+      timeoutMs?: number;               // default: 10 * 60 * 1000
+      env?: Record<string, string>;     // extra env vars
+      continueOnError?: boolean;        // default false
+   };
+
+export type HooksConfig = {
+   pre?: HookItem[];
+   post?: HookItem[];
+};
