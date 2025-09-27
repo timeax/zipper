@@ -1,7 +1,7 @@
 # Zipper config: Laravel + Inertia (build-on-server)
 # Ships sources; excludes compiled `public/build/**`. Composer/npm build runs on server.
 
-$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/0ec9c84e592a471bb94da26cd59ab40b3fe00aa8/zipconfig.schema.json
+$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/9dbd484f88df25231d02e3eb806034e83011298f/zipconfig.schema.json
 
 out: dist/site-inertia-sources.zip
 # out: dist/site-inertia-sources-${CI_COMMIT_SHA}.zip
