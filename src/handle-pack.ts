@@ -53,8 +53,8 @@ async function runPostHook(args: any, cfg: ZipConfig, filepath: string | undefin
 
 
 async function handlePack(args: any) {
-   const { cfg, filepath } = await loadConfig(args.config as string | undefined);
    await runPreHook(args);
+   const { cfg, filepath } = await loadConfig(args.config as string | undefined);
    // existing CLI → cfg overrides...
    if (args.out) cfg.out = String(args.out);
    if (args.root) cfg.root = String(args.root);
