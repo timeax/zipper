@@ -7,6 +7,8 @@ import { Order, ZipConfig, ProcessedEntry } from "./types";
 import { loadHooksMeta } from "./hooks_meta";
 import { runHookPhase } from "./hook";
 import { run } from "node:test";
+import { collectRemoteUploadArgs } from "./remote-upload-plumbing";
+import { handleUpload } from "./handle-upload";
 
 
 async function runPreHook(args: any) {
@@ -172,6 +174,16 @@ async function handlePack(args: any) {
    // --- Write the archive
    const out = await writeZip(cfg, entries);
    console.log(pc.green(`✔ wrote ${out} (${entries.length} files)`));
+   //---
+   try {
+      if (args.remote !== 'undefined') {
+         const backendFlag = (typeof args.remote === "string" && args.remote.trim().length) ? String(args.remote) : undefined;
+         const passthrough = collectRemoteUploadArgs(args, out);
+         await handleUpload(cfg, backendFlag, passthrough);
+      }
+   } catch (error) {
+      console.error(pc.red(`Upload error: ${(error as Error).message}`));
+   }
    // --- Run POST hooks
    await runPostHook(args, cfg, filepath, root, out, entries.map(e => "sourcePath" in e ? e.sourcePath : "(in-memory)"));
 }

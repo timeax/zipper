@@ -138,3 +138,104 @@ export type HooksConfig = {
    pre?: HookItem[];
    post?: HookItem[];
 };
+
+/* ===================== Remote deploy option shapes ===================== */
+// ---------- Shared remote base ----------
+export type RemoteConfirmMode = "auto" | "always" | "never";
+
+export type RemoteBase = {
+   /** Server IP/hostname or alias (when alias provides User, `user` can be omitted) */
+   host: string;
+   user?: string;
+   /** Domain used to derive default WEBROOT unless overridden */
+   domain?: string;
+   /** Preserve (skip delete/overwrite) inside docroot */
+   preservePaths?: string[];
+   /** Where backups live (remote paths for SSH; descriptive for FTP restore) */
+   backupDir?: string;
+   backupPrefix?: string;
+   backupRetain?: number;
+   /** Override computed locations */
+   webroot?: string;
+   remoteTmp?: string;
+   /** Behavior */
+   dryRun?: boolean;
+   timeoutMs?: number;
+   confirm?: RemoteConfirmMode;
+   /** Extra env passed through to scripts/runtimes */
+   extraEnv?: Record<string, string>;
+};
+
+// ---------- FTP ----------
+export type FtpSecurity = "none" | "explicit" | "implicit";
+
+export interface RemoteFtpOpts extends RemoteBase {
+   user: string;               // FTP always needs username
+   password: string;           // and password (or app-password)
+   /** Path to the ZIP artifact to deploy */
+   zipPath: string;
+   /** Remote docroot */
+   webroot?: string;
+   /** FTPS/FTP options */
+   secure?: FtpSecurity;       // default "explicit"
+   port?: number;              // default 21 or 990 when implicit
+   secureOptions?: any;        // TLS options (keep as `any` to avoid importing basic-ftp types)
+   /** Client behavior */
+   concurrency?: number;       // parallel uploads (default 4)
+   yes?: boolean;              // pre-approve confirmation
+}
+
+/** Restore over FTP from a local backup archive (zip/tar.gz) */
+export type RestoreFtpOpts = Omit<RemoteFtpOpts,
+   "zipPath" | "concurrency"
+> & {
+   /** Local backup archive path (.zip | .tar.gz | .tgz) */
+   backupPath: string;
+   /** Client behavior */
+   concurrency?: number;
+};
+
+// ---------- SSH / SFTP (if you centralize them too) ----------
+export interface RemoteSshOpts extends RemoteBase {
+   /** ZIP to upload & deploy */
+   zipPath: string;
+   sshPort?: number;
+   sshKeyPath?: string;
+   sshOpts?: string;
+}
+
+export type RestoreSshOpts = Omit<RemoteSshOpts, "zipPath"> & {
+   /** If omitted, restore script picks latest by prefix */
+   backupName?: string;
+};
+
+// (Optional) SFTP mirror of FTP auth semantics
+export interface RemoteSftpOpts extends RemoteBase {
+   user: string;
+   password?: string;
+   /** ZIP to upload & deploy */
+   zipPath: string;
+   /** Remote docroot */
+   webroot?: string;
+   port?: number;              // default 22
+   /** Client behavior */
+   concurrency?: number;
+   yes?: boolean;
+}
+
+// ---------- Deploy config on ZipConfig ----------
+export type DeployBackend = "shell" | "sftp" | "ftp";
+
+// NOTE: original snippet had a typo "RemoteShhOpts". Use RemoteSshOpts.
+export type DeployTarget = RemoteSshOpts | RemoteFtpOpts | RemoteSftpOpts;
+
+export type DeployConfig = {
+   default?: DeployBackend;
+   targets: Partial<Record<DeployBackend, DeployTarget>>;
+};
+
+// Extend your existing ZipConfig (don’t duplicate other fields here)
+export interface ZipConfig {
+   // ...existing fields...
+   deploy?: DeployConfig;
+}

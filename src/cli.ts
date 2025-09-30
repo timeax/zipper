@@ -14,6 +14,8 @@ import { handlePack } from "./handle-pack.js";
 import picomatch from "picomatch";
 import { buildGroupZipMapper } from "./groups.js";
 import { buildFileList } from "./pack";
+import { registerCommands } from "./remote.js";
+import { attachRemoteUploadOptions } from "./remote-upload-plumbing.js";
 /* ------------------------------- tiny helpers ------------------------------- */
 // 1) Extract the handler so both commands reuse it
 
@@ -227,14 +229,14 @@ async function resolveStubPath(name: string, localDir: string, globalDirs: strin
 
 /* ----------------------------------- CLI ---------------------------------- */
 
-await yargs(hideBin(process.argv))
+await registerCommands(yargs(hideBin(process.argv))
    .scriptName("zipper")
    /* -------------------------------- pack --------------------------------- */
    // 2) Register both commands (build is an alias/hidden)
    .command(
       "pack",
       "Create a zip using .zipconfig / zip.json",
-      y => y
+      y => attachRemoteUploadOptions(y)
          .option("config", { type: "string", desc: "Path to config file (no extension assumes .stub)" })
          .option("out", { type: "string", desc: "Output zip path (overrides config)" })
          .option("include", { type: "array", desc: "Additional include globs" })
@@ -966,8 +968,7 @@ Searched:
             })
          .demandCommand(1, "Specify a group subcommand.")
          .strict()
-   )
-
+   ))
    .demandCommand(1)
    .help()
    .strict()

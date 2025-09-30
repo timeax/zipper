@@ -8,6 +8,40 @@
          "type": "string",
          "description": "Editor hint only; ignored by Zipper."
       },
+      "deploy": {
+         "type": "object",
+         "description": "Remote deployment configuration keyed by backend.",
+         "properties": {
+            "default": {
+               "type": "string",
+               "enum": [
+                  "shell",
+                  "sftp",
+                  "ftp"
+               ],
+               "description": "Default backend to use when none is specified."
+            },
+            "targets": {
+               "type": "object",
+               "properties": {
+                  "shell": {
+                     "$ref": "#/$defs/DeployShell"
+                  },
+                  "sftp": {
+                     "$ref": "#/$defs/DeploySftp"
+                  },
+                  "ftp": {
+                     "$ref": "#/$defs/DeployFtp"
+                  }
+               },
+               "additionalProperties": false
+            }
+         },
+         "required": [
+            "targets"
+         ],
+         "additionalProperties": false
+      },
       "hooks": {
          "type": "object",
          "additionalProperties": false,
@@ -15,20 +49,20 @@
             "pre": {
                "type": "array",
                "items": {
-                  "$ref": "#/definitions/HookItem"
+                  "$ref": "#/$defs/HookItem"
                }
             },
             "post": {
                "type": "array",
                "items": {
-                  "$ref": "#/definitions/HookItem"
+                  "$ref": "#/$defs/HookItem"
                }
             }
          }
       },
       "out": {
          "type": "string",
-         "description": "Output zip path"
+         "description": "Output zip path (can include ${ENV_VARS})"
       },
       "root": {
          "type": "string",
@@ -36,7 +70,7 @@
       },
       "include": {
          "type": "array",
-         "description": "Glob patterns to include (relative to root)",
+         "description": "Glob patterns to include (gitignore-style, relative to root)",
          "items": {
             "type": "string"
          }
@@ -50,14 +84,14 @@
       },
       "dot": {
          "type": "boolean",
-         "description": "Whether to match dotfiles by default (scanner option)"
+         "description": "Whether to match dotfiles in globs (default true)"
       },
       "followSymlinks": {
          "type": "boolean",
-         "description": "Whether to follow symlinks during scanning"
+         "description": "Whether to follow symlinks during scanning (default false)"
       },
       "order": {
-         "description": "Rule precedence. Use [\"include\",\"exclude\"] or [\"exclude\",\"include\"]",
+         "description": "Rule precedence; either [\"include\",\"exclude\"] or [\"exclude\",\"include\"]",
          "type": "array",
          "prefixItems": [
             {
@@ -101,7 +135,7 @@
       },
       "deterministic": {
          "type": "boolean",
-         "description": "Force deterministic packing (stable ordering, timestamps, etc.)"
+         "description": "Deterministic packing (stable ordering, timestamps, etc.)"
       },
       "manifest": {
          "type": "boolean",
@@ -120,7 +154,7 @@
       },
       "preprocess": {
          "type": "object",
-         "description": "Preprocessor selection and runtime limits (handlers live in JS/TS modules)",
+         "description": "Preprocessor selection and runtime limits",
          "properties": {
             "includes": {
                "type": "array",
@@ -143,13 +177,20 @@
                   "type": "string"
                }
             },
+            "handlers": {
+               "type": "array",
+               "description": "JS/TS-only: inline handlers (functions). Not representable in JSON/YAML; ignored here.",
+               "items": {
+                  "type": "string"
+               }
+            },
             "module": {
                "type": "string",
-               "description": "Path to a single JS/TS module that exports a default or named `handlers`"
+               "description": "Path to a single JS/TS module that exports handlers"
             },
             "modules": {
                "type": "array",
-               "description": "Paths to JS/TS modules that export default or named `handlers`",
+               "description": "Paths to JS/TS modules that export handlers",
                "items": {
                   "type": "string"
                }
@@ -174,37 +215,7 @@
                "description": "Per-file preprocess timeout"
             }
          },
-         "additionalProperties": false,
-         "allOf": [
-            {
-               "if": {
-                  "required": [
-                     "module"
-                  ]
-               },
-               "then": {
-                  "properties": {
-                     "module": {
-                        "type": "string"
-                     }
-                  }
-               }
-            },
-            {
-               "if": {
-                  "required": [
-                     "modules"
-                  ]
-               },
-               "then": {
-                  "properties": {
-                     "modules": {
-                        "type": "array"
-                     }
-                  }
-               }
-            }
-         ]
+         "additionalProperties": false
       }
    },
    "required": [
@@ -225,8 +236,7 @@
                "description": "Globs that select files for this group (relative to root)",
                "items": {
                   "type": "string"
-               },
-               "minItems": 1
+               }
             },
             "exclude": {
                "type": "array",
@@ -308,6 +318,183 @@
                },
                "required": [
                   "run"
+               ],
+               "additionalProperties": false
+            }
+         ]
+      },
+      /* ---------------- Deploy targets ---------------- */
+      "RemoteBase": {
+         "type": "object",
+         "properties": {
+            "host": {
+               "type": "string"
+            },
+            "user": {
+               "type": "string"
+            },
+            "domain": {
+               "type": "string",
+               "description": "Used to derive default webroot when not provided."
+            },
+            "preservePaths": {
+               "type": "array",
+               "items": {
+                  "type": "string"
+               }
+            },
+            "backupDir": {
+               "type": "string"
+            },
+            "backupPrefix": {
+               "type": "string"
+            },
+            "backupRetain": {
+               "type": "integer",
+               "minimum": 0
+            },
+            "webroot": {
+               "type": "string"
+            },
+            "remoteTmp": {
+               "type": "string"
+            },
+            "dryRun": {
+               "type": "boolean"
+            },
+            "timeoutMs": {
+               "type": "integer",
+               "minimum": 0
+            },
+            "confirm": {
+               "type": "string",
+               "enum": [
+                  "auto",
+                  "always",
+                  "never"
+               ]
+            },
+            "extraEnv": {
+               "type": "object",
+               "additionalProperties": {
+                  "type": "string"
+               }
+            }
+         },
+         "required": [
+            "host"
+         ],
+         "additionalProperties": false
+      },
+      "DeployShell": {
+         "allOf": [
+            {
+               "$ref": "#/$defs/RemoteBase"
+            },
+            {
+               "type": "object",
+               "description": "SSH-based deploy using shell scripts (upload.sh / restore.sh).",
+               "properties": {
+                  "zipPath": {
+                     "type": "string"
+                  },
+                  "sshPort": {
+                     "type": "integer"
+                  },
+                  "sshKeyPath": {
+                     "type": "string"
+                  },
+                  "sshOpts": {
+                     "type": "string"
+                  }
+               },
+               "required": [
+                  "zipPath"
+               ],
+               "additionalProperties": false
+            }
+         ]
+      },
+      "DeploySftp": {
+         "allOf": [
+            {
+               "$ref": "#/$defs/RemoteBase"
+            },
+            {
+               "type": "object",
+               "properties": {
+                  "user": {
+                     "type": "string"
+                  }, /* override optional to required for SFTP */
+                  "password": {
+                     "type": "string"
+                  },
+                  "zipPath": {
+                     "type": "string"
+                  },
+                  "port": {
+                     "type": "integer"
+                  },
+                  "concurrency": {
+                     "type": "integer",
+                     "minimum": 1
+                  },
+                  "yes": {
+                     "type": "boolean"
+                  }
+               },
+               "required": [
+                  "user",
+                  "zipPath"
+               ],
+               "additionalProperties": false
+            }
+         ]
+      },
+      "DeployFtp": {
+         "allOf": [
+            {
+               "$ref": "#/$defs/RemoteBase"
+            },
+            {
+               "type": "object",
+               "properties": {
+                  "user": {
+                     "type": "string"
+                  },
+                  "password": {
+                     "type": "string"
+                  },
+                  "zipPath": {
+                     "type": "string"
+                  },
+                  "secure": {
+                     "type": "string",
+                     "enum": [
+                        "none",
+                        "explicit",
+                        "implicit"
+                     ]
+                  },
+                  "port": {
+                     "type": "integer"
+                  },
+                  "secureOptions": {
+                     "type": "object",
+                     "additionalProperties": true
+                  },
+                  "concurrency": {
+                     "type": "integer",
+                     "minimum": 1
+                  },
+                  "yes": {
+                     "type": "boolean"
+                  }
+               },
+               "required": [
+                  "user",
+                  "password",
+                  "zipPath"
                ],
                "additionalProperties": false
             }

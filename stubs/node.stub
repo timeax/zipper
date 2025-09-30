@@ -1,7 +1,7 @@
 # Zipper config for a Node/TypeScript package
 # Save as .zipconfig (or keep as a stub for scaffolding)
 
-$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/9dbd484f88df25231d02e3eb806034e83011298f/zipconfig.schema.json
+$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/84ce790b2e16a87e8cd0bba0e967e4e4b1c3b712/zipconfig.schema.json
 
 # Where to write the zip (ENV vars are expanded if present)
 out: dist/package.zip
