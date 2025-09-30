@@ -657,6 +657,358 @@ ZIPPER_TIMING=1 zipper pack --dry-run
 ```
 ---
 
+# Remote Deploy & Restore
+
+This update adds first‑class **remote deployment** and **restore** flows to Zipper. You can deploy the zip you just built to a server via:
+
+* **SSH (shell/rsync)** — runs `shell/upload.sh` on your server user, with preserve & backup logic.
+* **SFTP** — upload via SFTP, with preserve/merge behavior.
+* **FTP/FTPS** — upload via FTP (explicit/implicit TLS), with preserve/merge behavior.
+
+There are also matching **restore** flows to roll back from backups.
+
+---
+
+## Quick start
+
+1. Add a `deploy` block to your `.zipconfig` (JSON/YAML/JS), for one or more backends.
+
+```yaml
+# .zipconfig (YAML)
+out: dist/build.zip
+
+# … your regular zipper config …
+
+deploy:
+  default: sftp   # optional; if omitted the first configured target is used
+  targets:
+    sftp:
+      host: 203.0.113.10
+      user: deploy
+      domain: example.com           # used to infer webroot if not set
+      # webroot: /home/deploy/web/example.com/public_html
+      preservePaths: [uploads/, storage/, .well-known/, robots.txt]
+      timeoutMs: 120000
+
+    ftp:
+      host: ftp.example.com
+      user: deploy@example.com
+      password: ${FTP_PASS}
+      webroot: /httpdocs
+      secure: explicit               # "explicit" | "implicit" | "none"
+
+    shell:
+      host: 203.0.113.20
+      user: app
+      domain: app.example.com
+      # webroot/backupDir can be inferred; override if custom
+```
+
+2. Build and deploy in one go:
+
+```bash
+# Build then deploy to the default/first target
+zipper pack --remote
+
+# Or pick a target explicitly (overrides deploy.default)
+zipper pack --remote --target sftp
+```
+
+You can also deploy/restore independently:
+
+```bash
+# Upload (by target)
+zipper upload:sftp
+zipper upload:ftp
+zipper upload:shell
+
+# Upload (auto-select default/first)
+zipper upload                # uses deploy.default or first configured
+zipper upload --target ftp   # override
+
+# Restore (by target)
+zipper restore:sftp --remote-dir /home/deploy/backups --remote-prefix example.com-public_html
+zipper restore:ftp  --backup backups/example.com-public_html-20250101-000000.tar.gz
+zipper restore:shell --backup-name app.example.com-public_html-20250101-000000.tar.gz
+
+# Restore (auto-select)
+zipper restore               # uses deploy.default or first configured
+zipper restore --target shell
+```
+
+---
+
+## Command reference
+
+### Build + deploy
+
+```bash
+zipper pack --remote [--target <shell|sftp|ftp>] [common flags…]
+```
+
+* Uses your regular `pack` options **and** forwards relevant remote flags.
+* Selects target by `--target`, else `deploy.default`, else first configured.
+
+### Upload only
+
+Shortcuts for each backend:
+
+```bash
+zipper upload:shell [flags]
+zipper upload:sftp  [flags]
+zipper upload:ftp   [flags]
+```
+
+Target‑agnostic:
+
+```bash
+zipper upload [--target <shell|sftp|ftp>] [flags]
+```
+
+### Restore
+
+```bash
+zipper restore:shell [--backup-name <file>]
+zipper restore:sftp  [--backup <local>] [--remote-dir <path>] [--remote-prefix <p>] [--remote-name <file>]
+zipper restore:ftp   --backup <local .zip|.tar.gz>
+
+# Or auto-select target
+zipper restore [--target <shell|sftp|ftp>] [flags]
+```
+
+> **Notes on backups**
+>
+> * **shell (SSH)**: `upload.sh` always creates a remote tar.gz backup of `public_html` before syncing. `restore.sh` restores from that remote backup directory and supports `--backup-name`.
+> * **sftp**: Restore supports **either** a local archive path **or** pulling from a remote backup directory by prefix/name.
+> * **ftp**: Restore uses a **local** archive you provide.
+
+---
+
+## Options (common)
+
+* `--yes` / `--confirm=never|always|auto` — control interactive confirmation (default `auto`). Non‑interactive requires `--yes`.
+* `--dry-run` — preview without changing remote.
+* `--timeout <ms>` — connection/operation timeout (default inherits sensible backend default).
+* `--concurrency <n>` — parallel uploads (SFTP/FTP; default `4`, max `16`).
+* `--preserve a,b,c` — override/extend `preservePaths` from config. Paths ending with `/` are treated as directory prefixes; exact filenames otherwise.
+
+### Target‑specific flags (when you need to override config)
+
+**SSH (shell)**
+
+```
+--host <ip/alias>  --user <name>  --domain <example.com>
+--webroot <abs path>  --backup-dir <abs>  --backup-prefix <str>  --backup-retain <N>
+--ssh-key <path>  --ssh-port <22>  --ssh-opts "-o StrictHostKeyChecking=accept-new"
+```
+
+**SFTP**
+
+```
+--host --user --pass <or ZIPPER_SFTP_PASS> --port <22>
+--webroot <abs>  --domain <example.com>   # if webroot omitted, domain+user => /home/<user>/web/<domain>/public_html
+```
+
+**FTP/FTPS**
+
+```
+--host --user --pass <or ZIPPER_FTP_PASS> --secure <explicit|implicit|none> --port <21|990>
+--webroot <abs>  # required (no domain inference for raw FTP)
+```
+
+---
+
+## How “preserve” & sync work
+
+The deployers run in **two phases**:
+
+1. **Phase A (authoritative)** — outside preserved paths, delete remote files not present in the release, then upload/update non‑preserved files.
+2. **Phase B (merge)** — inside preserved paths, **only add new files** (do not overwrite or delete). Useful for `uploads/`, `storage/`, etc.
+
+Preserve matching:
+
+* `"uploads/"` → treats `uploads/` as a directory prefix.
+* `"robots.txt"` → exact file match.
+
+---
+
+## Webroot & domain inference
+
+* **shell (SSH)** and **sftp** can infer `webroot` as:
+
+```
+/home/<user>/web/<domain>/public_html
+```
+
+…when `domain` is provided in config/flags and `webroot` is omitted.
+
+* **ftp** requires `webroot` explicitly (no inference).
+
+---
+
+## Configuration
+
+You can place deploy settings under `deploy.targets` in `.zipconfig`. Examples:
+
+### Minimal SFTP
+
+```jsonc
+{
+  "out": "dist/build.zip",
+  "deploy": {
+    "default": "sftp",
+    "targets": {
+      "sftp": {
+        "host": "203.0.113.10",
+        "user": "deploy",
+        "domain": "example.com",          // webroot inferred
+        "preservePaths": ["uploads/", "storage/", ".well-known/", "robots.txt"],
+        "timeoutMs": 120000
+      }
+    }
+  }
+}
+```
+
+### FTP with FTPS (explicit)
+
+```jsonc
+{
+  "out": "dist/build.zip",
+  "deploy": {
+    "targets": {
+      "ftp": {
+        "host": "ftp.example.com",
+        "user": "deploy@example.com",
+        "password": "${FTP_PASS}",
+        "webroot": "/httpdocs",
+        "secure": "explicit"
+      }
+    }
+  }
+}
+```
+
+### SSH (shell) using `shell/upload.sh`
+
+```jsonc
+{
+  "out": "dist/build.zip",
+  "deploy": {
+    "targets": {
+      "shell": {
+        "host": "203.0.113.20",
+        "user": "app",
+        "domain": "app.example.com",
+        "preservePaths": ["uploads/", "storage/"],
+        "sshKeyPath": "~/.ssh/id_ed25519"
+      }
+    }
+  }
+}
+```
+
+> The shell backend maps settings to environment variables read by `shell/upload.sh` / `shell/restore.sh` (e.g., `HOST`, `USER`, `DOMAIN`, `ZIP_PATH`, `BACKUP_DIR`, `BACKUP_PREFIX`, `BACKUP_RETAIN`, `YES`, `DRY_RUN`, etc.). You can still override values via CLI flags.
+
+---
+
+## Build hooks + remote
+
+You can keep custom steps in hooks and still use the remote deploy:
+
+```yaml
+hooks:
+  pre:
+    - "pnpm build"
+  post:
+    - run: ["node", "scripts/ping.js"]
+```
+
+```bash
+zipper pack --remote --target sftp
+```
+
+Hooks run locally **before** upload.
+
+---
+
+## Restore examples
+
+**shell (SSH)** — restore the latest (server‑side backups created by `upload.sh`):
+
+```bash
+zipper restore:shell                   # pick latest by name
+zipper restore:shell --backup-name app.example.com-public_html-20250101-000000.tar.gz
+```
+
+**sftp** — restore from a local backup or fetch from a remote backup dir:
+
+```bash
+# local archive
+zipper restore:sftp --backup backups/site-20250101-000000.tar.gz
+
+# pick the most recent on the server by prefix
+zipper restore:sftp --remote-dir /home/deploy/backups --remote-prefix example.com-public_html
+
+# or name it explicitly
+zipper restore:sftp --remote-dir /home/deploy/backups --remote-name example.com-public_html-20250101-000000.tar.gz
+```
+
+**ftp** — restore from a local backup archive:
+
+```bash
+zipper restore:ftp --backup backups/site-20250101-000000.zip
+```
+
+All restore commands accept common flags like `--yes`, `--dry-run`, `--timeout`, `--preserve`, etc.
+
+---
+
+## Non‑interactive runs (CI)
+
+Add `--yes` (or env `YES=1`) to bypass prompts. Example:
+
+```bash
+YES=1 zipper pack --remote --target sftp
+```
+
+---
+
+## Troubleshooting
+
+* **“Non-interactive session. Pass --yes …”** — Add `--yes` or set `YES=1` in CI.
+* **SSH: Permission denied (publickey)** — Ensure your key is loaded (`ssh-add -l`) and the server user has shell access (not SFTP‑only). The scripts use `StrictHostKeyChecking=accept-new` by default.
+* **FTP TLS issues** — Try `--secure implicit` (port 990) or `--secure none` for plain FTP (not recommended). Some hosts require passive mode by default (handled by the client).
+* **Wrong webroot** — For shell/sftp, set `domain` or override `webroot`. For FTP you must set `webroot` explicitly.
+* **Preserve paths overwriting files** — Only new files are added in preserved paths; existing files are not overwritten in Phase B.
+
+---
+
+## Security
+
+* Prefer **SSH/SFTP** over FTP where possible.
+* Store secrets in env vars (e.g., `ZIPPER_FTP_PASS`, `ZIPPER_SFTP_PASS`) and reference them in `.zipconfig`.
+* Limit the deploy user’s permissions to just the docroot.
+
+---
+
+## FAQ
+
+**Q: Do I have to put `zipPath` in the config?**
+A: Not for `pack --remote` — it uses the freshly built `out` file. For direct uploads (`zipper upload:*`) you can pass `--zip` to override.
+
+**Q: What’s the default target if I don’t pass `--target`?**
+A: `deploy.default` if set, otherwise the first configured target under `deploy.targets`.
+
+**Q: Can I run my own scripts?**
+A: Yes — use **hooks** locally, or the **shell** backend which executes our `shell/*.sh` scripts on the server. You can still extend those scripts as needed.
+
+---
+
+Happy shipping! 🚀
+
+---
+
 ## 🤝 Contributing
 
 1. Fork the repo
