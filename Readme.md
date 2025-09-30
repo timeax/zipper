@@ -657,7 +657,7 @@ ZIPPER_TIMING=1 zipper pack --dry-run
 ```
 ---
 
-# Remote Deploy & Restore
+# Remote Deploy & Restore (Beta)
 
 This update adds first‑class **remote deployment** and **restore** flows to Zipper. You can deploy the zip you just built to a server via:
 
