@@ -12,7 +12,9 @@ export default defineConfig({
    banner: { js: '#!/usr/bin/env node' },
    noExternal: [/^node:/],   // builtins stay external automatically
    external: [
-      'picomatch', 'yargs', 'archiver', 'cli-progress', 'js-yaml',
+      'picomatch', 'yargs', 'archiver', 'cli-progress', 'js-yaml', "unzipper",
+      "basic-ftp",
+      "tar",
       // add other deps you don’t want inlined
    ],
 });
