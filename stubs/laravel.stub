@@ -1,7 +1,7 @@
 # Zipper config for a Laravel app deployable bundle
 # Save as .zipconfig (or keep as a stub for scaffolding)
 
-$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/84ce790b2e16a87e8cd0bba0e967e4e4b1c3b712/zipconfig.schema.json
+$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/6915f42ec497c9132dcb5eaeae5821b6de3007d9/zipconfig.schema.json
 
 # Output archive
 out: dist/site.zip

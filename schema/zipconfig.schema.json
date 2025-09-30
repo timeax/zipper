@@ -408,9 +408,6 @@
                      "type": "string"
                   }
                },
-               "required": [
-                  "zipPath"
-               ],
                "additionalProperties": false
             }
          ]
@@ -444,8 +441,7 @@
                   }
                },
                "required": [
-                  "user",
-                  "zipPath"
+                  "user"
                ],
                "additionalProperties": false
             }
@@ -493,8 +489,7 @@
                },
                "required": [
                   "user",
-                  "password",
-                  "zipPath"
+                  "password"
                ],
                "additionalProperties": false
             }
