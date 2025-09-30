@@ -1,6 +1,6 @@
 {
   "name": "@timeax/zipper",
-  "version": "0.1.20",
+  "version": "0.1.21",
   "description": "Config-driven project zipper with .zipconfig / zip.json (include/exclude, presets, dry-run, gitignore support).",
   "type": "module",
   "bin": {
@@ -25,7 +25,8 @@
     "test:dry": "node dist/cli.js pack --respect-gitignore --dry-run",
     "prepublishOnly": "npm run build && npm version patch --no-git-tag-version",
     "install:global": "npm uninstall -g @timeax/zipper && npm install -g @timeax/zipper",
-    "test": "node dist/cli.js pack"
+    "test": "node dist/cli.js pack",
+    "postpublish": "git add package.json && git commit -m 'chore(release): publish v$npm_package_version' && npm run install:global"
   },
   "dependencies": {
     "ajv": "^8.17.1",
