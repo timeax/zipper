@@ -164,6 +164,7 @@ export type RemoteBase = {
    confirm?: RemoteConfirmMode;
    /** Extra env passed through to scripts/runtimes */
    extraEnv?: Record<string, string>;
+   verbose?: boolean;
 };
 
 // ---------- FTP ----------

@@ -10,6 +10,7 @@ import type { RemoteSshOpts } from "./types";
 /* -----------------------------------------------------------
    Upload via SSH (runs built-in shell/upload.sh)
 ----------------------------------------------------------- */
+import { fileURLToPath } from "node:url";
 
 export async function uploadViaSSH(opts: RemoteSshOpts) {
    const {
@@ -24,8 +25,10 @@ export async function uploadViaSSH(opts: RemoteSshOpts) {
       confirm = "auto",
    } = opts;
 
+   const dirname = path.dirname(fileURLToPath(import.meta.url));
+
    // Fixed script path (built-in)
-   const script = path.resolve(__dirname, "../shell/upload.sh");
+   const script = path.resolve(dirname, "../shell/upload.sh");
    if (!fs.existsSync(script)) {
       throw new Error(`upload.sh not found at: ${script} (ensure it's packaged in "files")`);
    }
@@ -50,7 +53,7 @@ export async function uploadViaSSH(opts: RemoteSshOpts) {
       HOST: host,
       DOMAIN: domain,
       ZIP_PATH: zipAbs,
-
+      VERBOSE: opts.verbose ? "1" : "0",
       WEBROOT,
       REMOTE_TMP,
       BACKUP_DIR,
@@ -127,7 +130,8 @@ export async function restoreViaSSH(opts: RemoteSshOpts & {
       force = false,
    } = opts;
 
-   const script = path.resolve(__dirname, "../shell/restore.sh");
+   const dirname = path.dirname(fileURLToPath(import.meta.url));
+   const script = path.resolve(dirname, "../shell/restore.sh");
    if (!fs.existsSync(script)) {
       throw new Error(`restore.sh not found at: ${script} (ensure it's packaged in "files")`);
    }
@@ -160,6 +164,17 @@ export async function restoreViaSSH(opts: RemoteSshOpts & {
    const runner = pickBashRunner(script);
    const args = runner.cmd === "bash" ? [script] : [];
    console.log(pc.dim(`[ssh:restore] ${runner.cmd} ${args.join(" ")}  # ${path.relative(process.cwd(), script)}`));
+
+   // before spawn in restoreViaSSH
+   const interactive = process.stdout.isTTY && process.stdin.isTTY;
+   const preApproved = !!env.FORCE;
+
+   if (interactive && !preApproved) {
+      const ok = await askConfirm("Restore now? [y/N] ");
+      if (!ok) throw new Error("Aborted by user.");
+      env.FORCE = "1";        // suppress Bash prompt
+      env.QUIET_PREVIEW = "1"; // (optional) silence Bash preview if you add that flag
+   }
 
    await spawnWithTimeout(runner.cmd, args, { cwd: process.cwd(), env, shell: runner.shell }, timeoutMs);
 }
