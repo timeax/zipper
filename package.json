@@ -1,6 +1,6 @@
 {
   "name": "@timeax/zipper",
-  "version": "0.1.24",
+  "version": "0.2.0",
   "description": "Config-driven project zipper with .zipconfig / zip.json (include/exclude, presets, dry-run, gitignore support).",
   "type": "module",
   "bin": {
@@ -16,6 +16,7 @@
     "dist",
     "schema",
     "stubs",
+    "shell",
     "README.md",
     "LICENSE"
   ],
