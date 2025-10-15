@@ -1,7 +1,7 @@
 # Zipper config for a Laravel + Inertia (React/TypeScript) app
 # Save as .zipconfig (or keep as a stub for scaffolding)
 
-$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/6915f42ec497c9132dcb5eaeae5821b6de3007d9/zipconfig.schema.json
+$schema: https://gist.githubusercontent.com/timeax/46f46db3ba4bcb384904857697420074/raw/5d2b1220814d2fc2eeef55474011828d31f6edc3/zipconfig.schema.json
 
 # Output archive
 out: dist/site-inertia.zip
